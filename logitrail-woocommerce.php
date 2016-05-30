@@ -56,6 +56,9 @@ class Logitrail_WooCommerce {
 	add_action( 'woocommerce_review_order_before_shipping', array($this, 'logitrail_woocommerce_review_order_before_shipping'), 5, 1 );
 
 	add_action( 'post_updated', array($this, 'logitrail_create_product'));
+
+	add_filter( 'woocommerce_cart_shipping_method_full_label', array($this, 'logitrail_remove_label'), 10, 2 );
+
     }
 
     /**
@@ -185,6 +188,7 @@ class Logitrail_WooCommerce {
 	$apic = new Logitrail\Lib\ApiClient();
 	$test_server = ($settings['test_server'] === 'yes' ? true : false);
 	$apic->useTest($test_server);
+	$apic->setResponseAsArray(true);
 
         $apic->setMerchantId($settings['merchant_id']);
         $apic->setSecretKey($settings['secret_key']);
@@ -198,7 +202,7 @@ class Logitrail_WooCommerce {
 	// TODO: handle failed confirmation (if possible?)
         $result = $apic->confirmOrder($order_id);
 
-	echo "<br />Voit seurata toimitustasi osoitteessa: <a href='" . $result->tracking_url . "' target='_BLANK'>" . $result->tracking_url . "</a><br />";
+	echo "<br />Voit seurata toimitustasi osoitteessa: <a href='" . $result['tracking_url'] . "' target='_BLANK'>" . $result['tracking_url'] . "</a><br />";
 
         delete_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_order_id');
     }
@@ -244,6 +248,15 @@ class Logitrail_WooCommerce {
 
 	$response = $apic->createProducts();
     }
+
+    function logitrail_remove_label($label, $method) {
+	if(is_cart()) {
+	    return 'Laskenta tarvitsee osoitetiedot.';
+	}
+
+	return $label;
+    }
+
 }
 
 new Logitrail_WooCommerce();
