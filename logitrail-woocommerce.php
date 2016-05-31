@@ -144,6 +144,7 @@ class Logitrail_WooCommerce {
         $address = $woocommerce->customer->get_shipping_address();
         $city = $woocommerce->customer->get_shipping_city();
         $postcode = $woocommerce->customer->get_shipping_postcode();
+	$country = $woocommerce->customer->get_shipping_country();
 
         $settings = get_option('woocommerce_logitrail_shipping_settings');
 
@@ -162,8 +163,21 @@ class Logitrail_WooCommerce {
         $cartContent = $woocommerce->cart->get_cart();
 
         foreach($cartContent as $cartItem) {
-	    // FIXME: add tax percentage
-            $apic->addProduct($cartItem['data']->get_sku(), $cartItem['data']->get_title(), $cartItem['quantity'], $cartItem['data']->get_weight() * 1000, $cartItem['data']->get_price(), 0);
+	    $taxes = WC_Tax::find_rates(array(
+		'city' => $city,
+		'postcode' => $postcode,
+		'country' => $country,
+		'tax_class' => $cartItem['data']->get_tax_class()
+	    ));
+	    if(count($taxes) > 0) {
+		$tax = array_shift($taxes)['rate'];
+	    }
+	    else {
+		// TODO: Should merchant be informed of products without marked tax?
+		$tax = 0;
+	    }
+
+            $apic->addProduct($cartItem['data']->get_sku(), $cartItem['data']->get_title(), $cartItem['quantity'], $cartItem['data']->get_weight() * 1000, $cartItem['data']->get_price(), $tax);
         }
 
         $form = $apic->getForm();
@@ -188,7 +202,6 @@ class Logitrail_WooCommerce {
 	$apic = new Logitrail\Lib\ApiClient();
 	$test_server = ($settings['test_server'] === 'yes' ? true : false);
 	$apic->useTest($test_server);
-	$apic->setResponseAsArray(true);
 
         $apic->setMerchantId($settings['merchant_id']);
         $apic->setSecretKey($settings['secret_key']);
@@ -243,7 +256,6 @@ class Logitrail_WooCommerce {
         $apic->setSecretKey($settings['secret_key']);
 
 	// weight for Logitrail goes in grams, dimensions in millimeter
-	// FIXME: get tax percentage
 	$apic->addProduct($product->get_sku(), $product->get_title(), 1, $product->get_weight() * 1000, $product->get_price(), 0, null, $product->get_width() * 10, $product->get_height() * 10, $product->get_length() * 10);
 
 	$response = $apic->createProducts();

@@ -1,9 +1,13 @@
 <?php
 /**
- * WF_Shipping_UPS class.
+ * Logitrail_Shipping class.
  *
  * @extends WC_Shipping_Method
  */
+
+// Require the Logitrail ApiClient
+require_once( 'ApiClient.php' );
+
 class Logitrail_Shipping extends WC_Shipping_Method {
 
     /**
@@ -15,7 +19,7 @@ class Logitrail_Shipping extends WC_Shipping_Method {
     public function __construct() {
 	$this->id                 = LOGITRAIL_ID;
 	$this->method_title       = __( 'Logitrail', 'logitrail-woocommerce' );
-	$this->method_description = __( 'The <strong>UPS</strong> extension obtains rates dynamically from the UPS API during cart/checkout.', 'ups-woocommerce-shipping' );
+	$this->method_description = __( 'The Logitrail extension informs Logitrail of the order and retrieves shipping fee during checkout.', 'logitrail-woocommerce' );
 
 	// WF: Load UPS Settings.
 	$ups_settings 		= get_option( 'woocommerce_'.LOGITRAIL_ID.'_settings', null );
@@ -47,6 +51,9 @@ class Logitrail_Shipping extends WC_Shipping_Method {
 	$this->test_server		= !empty( $this->settings['test_server'] ) ? $this->settings['test_server'] : '';
 
 	add_action( 'woocommerce_update_options_shipping_' . $this->id, array( $this, 'process_admin_options' ) );
+	add_action( 'woocommerce_update_options_shipping_' . $this->id, array( $this, 'export_products' ) );
+	// Reset export option, so we don't export every time settings are saved, only when it is actually selected
+	$this->settings['export_products'] = 'no';
     }
 
     /**
@@ -89,6 +96,54 @@ class Logitrail_Shipping extends WC_Shipping_Method {
 
 	// Show settings
 	parent::admin_options();
+    }
+
+    public function export_products() {
+	// FIXME: This is run four times, any solution to mark it as running
+	// so it would be only once..?
+	if($this->settings['export_products'] == 'yes') {
+	    $apic = new Logitrail\Lib\ApiClient();
+	    $test_server = ($this->settings['test_server'] === 'yes' ? true : false);
+	    $apic->useTest($test_server);
+
+	    $apic->setMerchantId($this->settings['merchant_id']);
+	    $apic->setSecretKey($this->settings['secret_key']);
+
+	    $productsAdded = 0;
+	    $productsAddedTotal = 0;
+	    $loop = new WP_Query( array( 'post_type' => array('product'), 'posts_per_page' => -1 ) );
+	    while($loop->have_posts()) {
+		$loop->the_post();
+
+		$post_id = get_the_ID();
+		$product = wc_get_product($post_id);
+
+		// weight for Logitrail goes in grams, dimensions in millimeter
+		$apic->addProduct($product->get_sku(), $product->get_title(), 1, $product->get_weight() * 1000, $product->get_price(), 0, null, $product->get_width() * 10, $product->get_height() * 10, $product->get_length() * 10);
+
+		// create products in batches of 5, so in big shops we don't get
+		// huge amount of products taking memory in ApiClient
+		$productsAdded++;
+		$productsAddedTotal++;
+		if($productsAdded > 5) {
+		    // TODO: Add error handling/reposting when Logitrail's errors are sorted out, ie. they don't send HTML instead of JSON on error
+		    $response = $apic->createProducts();
+		    $apic->clearProducts();
+		    $productsAdded = 0;
+		}
+	    }
+
+	    $response = $apic->createProducts();
+	    $apic->clearProducts();
+
+	    wp_reset_query();
+
+	    ?>
+	    <div class="updated">
+		<p><?php esc_html_e('Exported ' . $productsAddedTotal . ' products to Logitrail.', 'text-domain' ); ?></p>
+	    </div>
+	    <?php
+	}
     }
 
     /**
@@ -144,7 +199,12 @@ class Logitrail_Shipping extends WC_Shipping_Method {
 		'default'	=> false,
 		'desc_tip'	=> true
 	    ),
-
+	    'export_products'=> array(
+		'title'		=> __( 'Export products', 'logitrail-woocommerce' ),
+		'label'		=> __( "Export all current products to Logitrail's system<br />(will happen once after option is selected, then option is reset to not selected)", 'logitrail-woocommerce' ),
+		'type'		=> 'checkbox',
+		'default'	=> false,
+	    ),
         );
     }
 
@@ -160,7 +220,7 @@ class Logitrail_Shipping extends WC_Shipping_Method {
 
         $this->add_rate( array(
                 'id' 	=> $this->id . '_postage',
-                'label' => 'Logitrail',
+                'label' => ' ',
                 'cost' 	=> get_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_price'),
                 'sort'  => 0
         ) );
