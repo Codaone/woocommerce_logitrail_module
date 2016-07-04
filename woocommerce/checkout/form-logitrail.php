@@ -1,4 +1,4 @@
-<script src="https://rawgit.com/logitrail/javascript-library/master/src/logitrail.js"></script>
+<script src="https://connect.logitrail.com/logitrail.js"></script>
 
 <div id="logitrailContainer" style=""></div>
 
