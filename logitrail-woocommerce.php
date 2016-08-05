@@ -227,11 +227,12 @@ class Logitrail_WooCommerce {
 
 		// TODO: handle failed confirmation (if possible?)
         $result = $apic->confirmOrder($order_id);
-
 		// TODO: translate
 		echo "<br />Voit seurata toimitustasi osoitteessa: <a href='" . $result['tracking_url'] . "' target='_BLANK'>" . $result['tracking_url'] . "</a><br />";
 
-        delete_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_order_id');
+		delete_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_price');
+		delete_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_order_id');
+		unset(WC()->session->shipping_for_package);
     }
 
     /**
@@ -280,6 +281,10 @@ class Logitrail_WooCommerce {
 		$settings = get_option('woocommerce_logitrail_shipping_settings');
 
 		$product = wc_get_product($post_id);
+
+		if(!$product) {
+			return;
+		}
 
 		$apic = new Logitrail\Lib\ApiClient();
 		$test_server = ($settings['test_server'] === 'yes' ? true : false);
