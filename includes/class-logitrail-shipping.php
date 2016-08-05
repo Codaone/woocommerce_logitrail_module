@@ -21,8 +21,7 @@ class Logitrail_Shipping extends WC_Shipping_Method {
 	$this->method_title       = __( 'Logitrail', 'logitrail-woocommerce' );
 	$this->method_description = __( 'The Logitrail extension informs Logitrail of the order and retrieves shipping fee during checkout.', 'logitrail-woocommerce' );
 
-	// WF: Load UPS Settings.
-	$ups_settings 		= get_option( 'woocommerce_'.LOGITRAIL_ID.'_settings', null );
+	$lt_settings 		= get_option( 'woocommerce_'.LOGITRAIL_ID.'_settings', null );
 
 	$this->init();
     }
@@ -108,11 +107,11 @@ class Logitrail_Shipping extends WC_Shipping_Method {
 
     	$this->form_fields  = array(
 	    'enabled'	=> array(
-			'title'		=> __( 'Enabled', 'ups-woocommerce-shipping' ),
+			'title'		=> __( 'Enabled', 'logitrail-woocommerce-shipping' ),
 			'type'		=> 'checkbox',
-			'label'		=> __( 'Enable', 'ups-woocommerce-shipping' ),
+			'label'		=> __( 'Enable', 'logitrail-woocommerce-shipping' ),
 			'default'	=> 'no',
-			'description'	=> __( 'Enable Logitrail on Cart/Checkout page.', 'ups-woocommerce-shipping' ),
+			'description'	=> __( 'Enable Logitrail on Cart/Checkout page.', 'logitrail-woocommerce-shipping' ),
 			'desc_tip'	=> true
 	    ),
 	    'title'	=> array(

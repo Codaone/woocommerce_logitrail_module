@@ -12,12 +12,12 @@ function doLogitrailCheckout() {
 
     logitrailTimeout = setTimeout(function() {
         Logitrail.checkout({
-            containerId: 'logitrailContainer',
-            bridgeUrl: '?wc-ajax=logitrail',
-            <?php if($useTestServer) { ?>
-	    host: "http://checkout.test.logitrail.com",
-	    <?php } ?>
-            success: function(logitrailResponse) {
+			containerId: 'logitrailContainer',
+			bridgeUrl: '?wc-ajax=logitrail',
+			<?php if($useTestServer) { ?>
+			host: "http://checkout.test.logitrail.com",
+			<?php } ?>
+			success: function(logitrailResponse) {
 
                 jQuery(document).ready(function($) {
 

@@ -61,6 +61,9 @@ class Logitrail_WooCommerce {
 		add_action( 'post_updated', array($this, 'logitrail_create_product'));
 
 		add_filter( 'woocommerce_cart_shipping_method_full_label', array($this, 'logitrail_remove_label'), 10, 2 );
+
+		// essentially disable WooCommerce's shipping rates cache
+		add_filter( 'woocommerce_checkout_update_order_review', array($this, 'clear_wc_shipping_rates_cache'), 10, 2);
     }
 
 	/**
@@ -75,7 +78,7 @@ class Logitrail_WooCommerce {
      */
     public function wf_plugin_action_links( $links ) {
         $plugin_links = array(
-            '<a href="' . admin_url( 'admin.php?page=wc-settings&tab=shipping&section=logitrail_shipping' ) . '">' . __( 'Settings', 'ups-woocommerce-shipping' ) . '</a>',
+            '<a href="' . admin_url( 'admin.php?page=wc-settings&tab=shipping&section=logitrail_shipping' ) . '">' . __( 'Settings', 'logitrail-woocommerce-shipping' ) . '</a>',
         );
 
         return array_merge( $plugin_links, $links );
@@ -154,12 +157,6 @@ class Logitrail_WooCommerce {
         $city = $woocommerce->customer->get_shipping_city();
         $postcode = $woocommerce->customer->get_shipping_postcode();
 		$country = $woocommerce->customer->get_shipping_country();
-
-		if($address == '' || $postcode == '' || $city == '') {
-			// TODO: Upgrade visual look
-			echo "<h2>Anna osoitetiedot toimitustavan valintaa varten.</h2>";
-			wp_die();
-		}
 
         $settings = get_option('woocommerce_logitrail_shipping_settings');
 
@@ -363,6 +360,11 @@ class Logitrail_WooCommerce {
 		wp_reset_query();
 	}
 
+	function clear_wc_shipping_rates_cache(){
+		// unset to force recalculation of cart total price when
+		// shipping price is changed
+		unset(WC()->session->shipping_for_package);
+	}
 }
 
 new Logitrail_WooCommerce();
