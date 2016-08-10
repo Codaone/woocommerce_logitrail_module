@@ -190,7 +190,7 @@ class Logitrail_WooCommerce {
 				$tax = 0;
 			}
 
-			$apic->addProduct($cartItem['data']->get_sku(), $cartItem['data']->get_title(), $cartItem['quantity'], $cartItem['data']->get_weight() * 1000, $cartItem['data']->get_price(), $tax);
+			$apic->addProduct($cartItem['data']->get_sku(), $cartItem['data']->get_title(), $cartItem['quantity'], $cartItem['data']->get_weight() * 1000, $cartItem['data']->get_price_including_tax(), $tax);
         }
 
         $form = $apic->getForm();
@@ -293,7 +293,7 @@ class Logitrail_WooCommerce {
 		$apic->setSecretKey($settings['secret_key']);
 
 		// weight for Logitrail goes in grams, dimensions in millimeter
-		$apic->addProduct($product->get_sku(), $product->get_title(), 1, $product->get_weight() * 1000, $product->get_price(), 0, null, $product->get_width() * 10, $product->get_height() * 10, $product->get_length() * 10);
+		$apic->addProduct($product->get_sku(), $product->get_title(), 1, $product->get_weight() * 1000, $product->get_price_including_tax(), 0, null, $product->get_width() * 10, $product->get_height() * 10, $product->get_length() * 10);
 
 		$responses = $apic->createProducts();
 		$errors = 0;
@@ -344,7 +344,7 @@ class Logitrail_WooCommerce {
 			$product = wc_get_product($post_id);
 
 			// weight for Logitrail goes in grams, dimensions in millimeter
-			$apic->addProduct($product->get_sku(), $product->get_title(), 1, $product->get_weight() * 1000, $product->get_price(), 0, null, $product->get_width() * 10, $product->get_height() * 10, $product->get_length() * 10);
+			$apic->addProduct($product->get_sku(), $product->get_title(), 1, $product->get_weight() * 1000, $product->get_price_including_tax(), 0, null, $product->get_width() * 10, $product->get_height() * 10, $product->get_length() * 10);
 
 			// create products in batches of 5, so in big shops we don't get
 			// huge amount of products taking memory in ApiClient
