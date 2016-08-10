@@ -43,7 +43,7 @@ class Logitrail_WooCommerce {
         add_action( 'woocommerce_shipping_init', array( $this, 'logitrail_shipping_init') );
         add_filter( 'woocommerce_shipping_methods', array( $this, 'logitrail_add_method') );
 
-        add_action( 'woocommerce_checkout_after_customer_details', array( $this, 'logitrail_get_template') );
+        add_action( 'woocommerce_checkout_shipping', array( $this, 'logitrail_get_template') );
         add_action( 'woocommerce_payment_complete', array( 'Logitrail_WooCommerce', 'logitrail_payment_complete'), 10, 1 );
 
         add_action( 'woocommerce_order_status_completed', array( 'Logitrail_WooCommerce', 'logitrail_payment_complete'), 10, 1 );
@@ -85,7 +85,7 @@ class Logitrail_WooCommerce {
     }
 
     /**
-     * wc_ups_init function.
+     * logitrail_shipping_init function.
      *
      * @access public
      * @return void
@@ -94,61 +94,61 @@ class Logitrail_WooCommerce {
         include_once( 'includes/class-logitrail-shipping.php' );
     }
 
-    /**
-     * logitrail_add_method function.
-     *
-     * @access public
-     * @param mixed $methods
-     * @return void
-     */
-    function logitrail_add_method( $methods ) {
-        $methods[] = 'Logitrail_Shipping';
+	/**
+	 * logitrail_add_method function.
+	 *
+	 * @access public
+	 * @param mixed $methods
+	 * @return void
+	 */
+	function logitrail_add_method( $methods ) {
+		$methods[] = 'Logitrail_Shipping';
 
-        return $methods;
-    }
+		return $methods;
+	}
 
-    function logitrail_plugin_path() {
+	function logitrail_plugin_path() {
 		// gets the absolute path to this plugin directory
 		return untrailingslashit( plugin_dir_path( __FILE__ ) );
-    }
+	}
 
     function logitrail_woocommerce_locate_template($template, $template_name, $template_path) {
-	global $woocommerce;
+		global $woocommerce;
 
-	$_template = $template;
-	if (!$template_path) {
-	    $template_path = $woocommerce->template_url;
-	}
+		$_template = $template;
+		if (!$template_path) {
+			$template_path = $woocommerce->template_url;
+		}
 
-	$plugin_path  = $this->logitrail_plugin_path() . '/woocommerce/';
+		$plugin_path  = $this->logitrail_plugin_path() . '/woocommerce/';
 
-	// Look within passed path within the theme - this is priority
-	$template = locate_template(
-	    array(
-		$template_path . $template_name,
-		$template_name
-	    )
-	);
+		// Look within passed path within the theme - this is priority
+		$template = locate_template(
+			array(
+			$template_path . $template_name,
+			$template_name
+			)
+		);
 
-	// Modification: Get the template from this plugin, if it exists
-	if (!$template && file_exists( $plugin_path . $template_name )) {
-	    $template = $plugin_path . $template_name;
-	}
+		// Modification: Get the template from this plugin, if it exists
+		if (!$template && file_exists( $plugin_path . $template_name )) {
+			$template = $plugin_path . $template_name;
+		}
 
-	// Use default template
-	if (!$template) {
-	    $template = $_template;
-	}
+		// Use default template
+		if (!$template) {
+			$template = $_template;
+		}
 
-	// Return what we found
-	return $template;
+		// Return what we found
+		return $template;
     }
 
-    public static function logitrail_get_template() {
-        $settings = get_option('woocommerce_logitrail_shipping_settings');
-	$args = array('useTestServer' => ($settings['test_server'] === 'yes' ? true : false));
-	wc_get_template( 'checkout/form-logitrail.php', $args);
-    }
+	public static function logitrail_get_template() {
+		$settings = get_option('woocommerce_logitrail_shipping_settings');
+		$args = array('useTestServer' => ($settings['test_server'] === 'yes' ? true : false));
+		wc_get_template( 'checkout/form-logitrail.php', $args);
+	}
 
     public static function logitrail_get_form() {
         global $woocommerce, $post;
@@ -274,10 +274,9 @@ class Logitrail_WooCommerce {
 				}
 				break;
 		}
-///		die();
 	}
 
-    function logitrail_create_product($post_id) {
+	function logitrail_create_product($post_id) {
 		$settings = get_option('woocommerce_logitrail_shipping_settings');
 
 		$product = wc_get_product($post_id);
@@ -290,8 +289,8 @@ class Logitrail_WooCommerce {
 		$test_server = ($settings['test_server'] === 'yes' ? true : false);
 		$apic->useTest($test_server);
 
-        $apic->setMerchantId($settings['merchant_id']);
-        $apic->setSecretKey($settings['secret_key']);
+		$apic->setMerchantId($settings['merchant_id']);
+		$apic->setSecretKey($settings['secret_key']);
 
 		// weight for Logitrail goes in grams, dimensions in millimeter
 		$apic->addProduct($product->get_sku(), $product->get_title(), 1, $product->get_weight() * 1000, $product->get_price(), 0, null, $product->get_width() * 10, $product->get_height() * 10, $product->get_length() * 10);
@@ -314,7 +313,7 @@ class Logitrail_WooCommerce {
 		if(count($responses > 1) && $errors > 0) {
 			//wc_add_notice("Virhe " . $errors . " tuotteen kohdalla siirrettäessä " . count('$responses') . " tuotetta Logitrailille");
 		}
-    }
+	}
 
     function logitrail_remove_label($label, $method) {
 		if(is_cart()) {
