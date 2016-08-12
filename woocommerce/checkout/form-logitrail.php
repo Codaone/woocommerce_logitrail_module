@@ -5,9 +5,16 @@
 <script>
 jQuery( 'body' ).on( 'updated_checkout', doLogitrailCheckout);
 
-var logitrailTimeout;
+var logitrailTimeout, checkoutTriggered = false;
 
 function doLogitrailCheckout() {
+	// dirty way to check wether we came from lower in this script from
+	// logitrail success, which is needed to update shipping in order summary
+	if(checkoutTriggered) {
+		checkoutTriggered = false;
+		return;
+	}
+
 	// timeout for some manner of debounce, tweak time based on need
 	clearTimeout(logitrailTimeout);
 
@@ -32,6 +39,7 @@ function doLogitrailCheckout() {
 						success:function(data) {
 							// This outputs the result of the ajax request
 							setTimeout(function (){
+								checkoutTriggered = true;
 								jQuery('body').trigger('update_checkout');
 							}, 2000);
 						},
