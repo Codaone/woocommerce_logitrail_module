@@ -367,6 +367,15 @@ class Logitrail_WooCommerce {
 	function clear_wc_shipping_rates_cache(){
 		// unset to force recalculation of cart total price when
 		// shipping price is changed
+
+		$packages = WC()->cart->get_shipping_packages();
+
+		foreach ($packages as $key => $value) {
+			$shipping_session = "shipping_for_package_$key";
+
+			unset(WC()->session->$shipping_session);
+		}
+
 		unset(WC()->session->shipping_for_package);
 	}
 }

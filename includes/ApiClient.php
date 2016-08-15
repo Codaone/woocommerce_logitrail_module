@@ -303,7 +303,7 @@ class ApiClient {
      */
     private function doPost($url, $data = false) {
 		if(!$this->merchantId || !$this->secretKey) {
-			throw new Exception('Missing merchant id or secret key');
+			throw new \Exception('Missing merchant id or secret key');
 		}
 
 		$auth = 'M-' . $this->merchantId . ':' . $this->secretKey;
