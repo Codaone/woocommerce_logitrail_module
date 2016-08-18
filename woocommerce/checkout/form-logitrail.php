@@ -33,7 +33,7 @@ function doLogitrailCheckout() {
                         url: '/index.php/checkout/?wc-ajax=logitrail_setprice',
                         method: 'post',
                         data: {
-							'postage': logitrailResponse.delivery_fee,
+							'postage': logitrailResponse.delivery_fee_full.net,
 							'order_id': logitrailResponse.order_id
 						},
 						success:function(data) {

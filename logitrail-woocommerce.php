@@ -270,7 +270,10 @@ class Logitrail_WooCommerce {
 		switch($received_data->event_type) {
 			case "product.inventory.change":
 				foreach ($received_data->payload as $product) {
-					//wc_update_product_stock($product->merchants_id/*, FIXME: NEW STOCK AMOUNT*/);
+					// FIXME: Parts of webhooks implementation is missing from
+					// Logitrail. Finish this side of them after finalization.
+
+					//wc_update_product_stock($product->merchants_id/*, NEW STOCK AMOUNT*/);
 				}
 				break;
 		}
@@ -368,14 +371,15 @@ class Logitrail_WooCommerce {
 		// unset to force recalculation of cart total price when
 		// shipping price is changed
 
+		// WooCommerce 2.6 cache
 		$packages = WC()->cart->get_shipping_packages();
-
 		foreach ($packages as $key => $value) {
 			$shipping_session = "shipping_for_package_$key";
 
 			unset(WC()->session->$shipping_session);
 		}
 
+		// WooCommerce 2.5 cache
 		unset(WC()->session->shipping_for_package);
 	}
 }
