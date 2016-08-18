@@ -173,8 +173,8 @@ class Logitrail_Shipping extends WC_Shipping_Method {
 
         $this->add_rate( array(
                 'id' 	=> $this->id . '_postage',
-                'label' => ' ',
-                'cost' 	=> get_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_price'),
+                'label' => 'Logitrail',
+				'cost' 	=> get_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_price'),
                 'sort'  => 0
         ) );
     }
