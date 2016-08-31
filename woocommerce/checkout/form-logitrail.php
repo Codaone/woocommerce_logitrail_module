@@ -34,7 +34,8 @@ function doLogitrailCheckout() {
                         method: 'post',
                         data: {
 							'postage': logitrailResponse.delivery_fee_full.net,
-							'order_id': logitrailResponse.order_id
+							'order_id': logitrailResponse.order_id,
+							'delivery_type': logitrailResponse.delivery_info.type
 						},
 						success:function(data) {
 							// This outputs the result of the ajax request

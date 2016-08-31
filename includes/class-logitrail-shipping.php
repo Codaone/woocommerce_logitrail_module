@@ -171,9 +171,15 @@ class Logitrail_Shipping extends WC_Shipping_Method {
     public function calculate_shipping( $package ) {
     	global $woocommerce;
 
+		$title = $this->settings['title'];
+		if($title == '') {
+			$type = get_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_type');
+			$title = ($type == 'pickup' ? 'Nouto' : 'Perille toimitus');
+		}
+
         $this->add_rate( array(
                 'id' 	=> $this->id . '_postage',
-                'label' => 'Logitrail',
+                'label' => $title,
 				'cost' 	=> get_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_price'),
                 'sort'  => 0
         ) );

@@ -64,6 +64,10 @@ class Logitrail_WooCommerce {
 
 		// essentially disable WooCommerce's shipping rates cache
 		add_filter( 'woocommerce_checkout_update_order_review', array($this, 'clear_wc_shipping_rates_cache'), 10, 2);
+
+		// extra barcode field stuff
+		add_action( 'woocommerce_product_options_general_product_data', array($this, 'logitrail_add_barcode'));
+		add_action( 'woocommerce_process_product_meta', array($this, 'logitrail_barcode_save'));
     }
 
 	/**
@@ -203,6 +207,7 @@ class Logitrail_WooCommerce {
 
         set_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_price', $_POST['postage']);
         set_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_order_id', $_POST['order_id']);
+        set_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_type', $_POST['delivery_type']);
     }
 
     public static function logitrail_payment_complete($this_id) {
@@ -232,6 +237,7 @@ class Logitrail_WooCommerce {
 
 		delete_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_price');
 		delete_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_order_id');
+		delete_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_type');
 		unset(WC()->session->shipping_for_package);
     }
 
@@ -296,7 +302,7 @@ class Logitrail_WooCommerce {
 		$apic->setSecretKey($settings['secret_key']);
 
 		// weight for Logitrail goes in grams, dimensions in millimeter
-		$apic->addProduct($product->get_sku(), $product->get_title(), 1, $product->get_weight() * 1000, $product->get_price_including_tax(), 0, null, $product->get_width() * 10, $product->get_height() * 10, $product->get_length() * 10);
+		$apic->addProduct($product->get_sku(), $product->get_title(), 1, $product->get_weight() * 1000, $product->get_price_including_tax(), 0, get_post_meta($post_id, 'barcode', true), $product->get_width() * 10, $product->get_height() * 10, $product->get_length() * 10);
 
 		$responses = $apic->createProducts();
 		$errors = 0;
@@ -325,7 +331,6 @@ class Logitrail_WooCommerce {
 
 		return $label;
     }
-
 
     public static function export_products() {
 		$settings = get_option('woocommerce_logitrail_shipping_settings');
@@ -365,6 +370,30 @@ class Logitrail_WooCommerce {
 		$apic->clearProducts();
 
 		wp_reset_query();
+	}
+
+	public static function logitrail_add_barcode() {
+		woocommerce_wp_text_input(
+			array(
+				'id' => 'barcode',
+				'label' => __( 'Barcode', 'woocommerce' ),
+				'placeholder' => 'barcode here',
+				'desc_tip' => 'true',
+				'description' => __( 'Product barcode.', 'woocommerce' )
+			)
+		);
+	}
+
+	function logitrail_barcode_save($post_id){
+
+		// Saving Barcode
+		$barcode = $_POST['barcode'];
+		if( !empty($barcode) ) {
+			update_post_meta( $post_id, 'barcode', esc_attr( $barcode ) );
+		}
+		else {
+			update_post_meta( $post_id, 'barcode', esc_attr( $barcode ) );
+		}
 	}
 
 	function clear_wc_shipping_rates_cache(){
