@@ -128,8 +128,8 @@ class ApiClient {
         $this->address = $address;
         $this->postalCode = $postalCode;
         $this->city = $city;
-	$this->phone = $phone;
-	$this->email = $email;
+		$this->phone = $phone;
+		$this->email = $email;
     }
 
     /**
@@ -162,6 +162,7 @@ class ApiClient {
             $post['products_'.$id.'_weight'] = $product['weight'];
             $post['products_'.$id.'_price'] = $product['price'];
             $post['products_'.$id.'_tax'] = $product['taxPct'];
+			$post['products_'.$id.'_gtin'] = $product['barcode'];
         }
 
         $mac = $this->calculateMac($post, $this->secretKey);
@@ -186,20 +187,20 @@ class ApiClient {
      * @return array The response resturned by Logitrail
      */
     public function updateOrder($logitrailOrderId) {
-	// TODO: Check that all mandatory values are given
-	// TODO: currently doesn't support updating products for the order
-	$orderData = array(
-	    'merchants_order' => $this->orderId,
-	    'customer' => array(
-		'firstName' => $this->firstName,
-		'lastName' => $this->lastName,
-		'email' => $this->email,
-		'phoneNumber' => $this->phone,
-		'address' => $this->address,
-		'city' => $this->city,
-		'postalCode' => $this->postalCode
-	    )
-	);
+		// TODO: Check that all mandatory values are given
+		// TODO: currently doesn't support updating products for the order
+		$orderData = array(
+			'merchants_order' => $this->orderId,
+			'customer' => array(
+			'firstName' => $this->firstName,
+			'lastName' => $this->lastName,
+			'email' => $this->email,
+			'phoneNumber' => $this->phone,
+			'address' => $this->address,
+			'city' => $this->city,
+			'postalCode' => $this->postalCode
+			)
+		);
 
         return $this->doPost($this->apiUrl . 'orders/' . $logitrailOrderId, $orderData);
     }
@@ -227,11 +228,11 @@ class ApiClient {
 
 	foreach($this->products as $id => $product) {
 	    $productData = array(
-		'merchants_id' => $product['id'],
-		'name' => $product['name'],
-		'gtin' => $product['barcode'],
-		'weight' => $product['weight'],
-		'dimensions' => array($product['width'], $product['height'], $product['length'])
+			'merchants_id' => $product['id'],
+			'name' => $product['name'],
+			'gtin' => $product['barcode'],
+			'weight' => $product['weight'],
+			'dimensions' => array($product['width'], $product['height'], $product['length'])
 	    );
 
 	    $results[] = $this->doPost($this->apiUrl . 'products/', $productData);
