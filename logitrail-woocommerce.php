@@ -294,6 +294,10 @@ class Logitrail_WooCommerce {
 
 		$product = wc_get_product($post_id);
 
+		if(!$product) {
+			return;
+		}
+
 		$apic = new Logitrail\Lib\ApiClient();
 		$test_server = ($settings['test_server'] === 'yes' ? true : false);
 		$apic->useTest($test_server);
