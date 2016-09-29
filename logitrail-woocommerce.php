@@ -3,8 +3,8 @@
 /*
     Plugin Name: Logitrail
     Description: Integrate checkout shipping with Logitrail
-    Version: 0.0.1
-    Author: Petri Kanerva petri@codaone.fi
+    Version: 0.0.13
+    Author: <a href="mailto:petri@codaone.fi">Petri Kanerva</a> | <a href="http://www.codaone.fi/">Codaone Oy</a>
 */
 
 if(!defined('ABSPATH')) {
@@ -32,25 +32,38 @@ define("LOGITRAIL_ID", "logitrail_shipping");
 
 class Logitrail_WooCommerce {
 
+    protected static $db_version = '0.1';
+	protected static $tables = array(
+        'debug' => 'logitrail_debug'
+    );
+
 	private $merchant_id;
 	private $secret_key;
+
+    private $debug_mode;
 
     /**
      * Constructor
      */
     public function __construct() {
+        register_activation_hook(__FILE__, array($this, 'logitrail_install'));
+        register_uninstall_hook(__FILE__, array($this, 'logitrail_uninstall'));
+
         add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), array( $this, 'wf_plugin_action_links' ) );
         add_action( 'woocommerce_shipping_init', array( $this, 'logitrail_shipping_init') );
         add_filter( 'woocommerce_shipping_methods', array( $this, 'logitrail_add_method') );
 
-        add_action( 'woocommerce_checkout_shipping', array( $this, 'logitrail_get_template') );
-        add_action( 'woocommerce_payment_complete', array( 'Logitrail_WooCommerce', 'logitrail_payment_complete'), 10, 1 );
+        add_action( 'woocommerce_checkout_shipping', array($this, 'logitrail_get_template') );
+        add_action( 'woocommerce_payment_complete', array($this, 'logitrail_payment_complete'), 10, 1 );
 
-        add_action( 'woocommerce_order_status_completed', array( 'Logitrail_WooCommerce', 'logitrail_payment_complete'), 10, 1 );
+        add_action( 'woocommerce_order_status_completed', array($this, 'logitrail_payment_complete'), 10, 1 );
 
-        add_action( 'wc_ajax_logitrail', array( 'Logitrail_WooCommerce', 'logitrail_get_form' ) );
-        add_action( 'wc_ajax_logitrail_setprice', array( 'Logitrail_WooCommerce', 'logitrail_set_price' ) );
+        add_action( 'wc_ajax_logitrail', array($this, 'logitrail_get_form' ) );
+        add_action( 'wc_ajax_logitrail_setprice', array($this, 'logitrail_set_price'));
         add_action( 'wc_ajax_logitrail_export_products', array( $this, 'export_products' ) );
+
+        add_action( 'wc_ajax_logitrail_debug_log', array( $this, 'get_debug_log' ) );
+        add_action( 'wc_ajax_logitrail_debug_log_clear', array( $this, 'clear_debug_log' ) );
 
 		add_action( 'parse_request', array( $this, 'handle_product_import' ), 0 );
 
@@ -70,6 +83,16 @@ class Logitrail_WooCommerce {
 		add_action( 'woocommerce_process_product_meta', array($this, 'logitrail_barcode_save'));
 
 		add_action( 'admin_notices', array($this, 'logitrail_notifications'));
+
+        // add possbile table prefix for db tables to be created
+        global $wpdb;
+        foreach (self::$tables as $name => &$table){
+            $table = $wpdb->prefix.$table;
+        }
+
+        $settings = get_option('woocommerce_logitrail_shipping_settings');
+
+		$this->debug_mode = ($settings['debug_mode'] === 'yes' ? true : false);
     }
 
 	/**
@@ -126,13 +149,13 @@ class Logitrail_WooCommerce {
 			$template_path = $woocommerce->template_url;
 		}
 
-		$plugin_path  = $this->logitrail_plugin_path() . '/woocommerce/';
+		$plugin_path = $this->logitrail_plugin_path() . '/woocommerce/';
 
 		// Look within passed path within the theme - this is priority
-		$template = locate_template(
-			array(
-			$template_path . $template_name,
-			$template_name
+        $template = locate_template(
+            array(
+                $template_path . $template_name,
+                $template_name
 			)
 		);
 
@@ -156,7 +179,7 @@ class Logitrail_WooCommerce {
 		wc_get_template( 'checkout/form-logitrail.php', $args);
 	}
 
-    public static function logitrail_get_form() {
+    public function logitrail_get_form() {
         global $woocommerce, $post;
 
         $address = $woocommerce->customer->get_shipping_address();
@@ -178,6 +201,10 @@ class Logitrail_WooCommerce {
         $apic->setCustomerInfo('', '', '', '', $address, $postcode, $city);
         $apic->setOrderId($woocommerce->session->get_session_cookie()[3]);
 
+        if($this->debug_mode) {
+            $this->logitrail_debug_log('Form, creating with data: ' . '""' . ', ' . '""' . ', ' . '""' . ', ' . '""' . ', ' .  $address . ', ' . $postcode . ', ' . $city);
+        }
+
         $cartContent = $woocommerce->cart->get_cart();
 
         foreach($cartContent as $cartItem) {
@@ -197,22 +224,43 @@ class Logitrail_WooCommerce {
 			}
 
 			$apic->addProduct($cartItem['data']->get_sku(), $cartItem['data']->get_title(), $cartItem['quantity'], $cartItem['data']->get_weight() * 1000, $cartItem['data']->get_price_including_tax(), $tax);
+
+            if($this->debug_mode) {
+                $this->logitrail_debug_log('Form, added product with data: ' . '""' . ', ' . '""' . ', ' . '""' . ', ' . '""' . ', ' .  $address . ', ' . $postcode . ', ' . $city);
+            }
+
         }
 
         $form = $apic->getForm();
         echo $form;
+
+        if($this->debug_mode) {
+            $this->logitrail_debug_log('Form, returned via ajax');
+        }
+
         wp_die();
     }
 
-    public static function logitrail_set_price() {
+    /*
+     * Set price via AJAX call
+     */
+    public function logitrail_set_price() {
         global $woocommerce;
 
         set_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_price', $_POST['postage']);
         set_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_order_id', $_POST['order_id']);
         set_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_type', $_POST['delivery_type']);
+
+        if($this->debug_mode) {
+            $this->logitrail_debug_log('Setting postage to ' . $_POST['postage']);
+
+            $postage = get_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_price');
+
+            $this->logitrail_debug_log('Confirming postage value as ' . $postage);
+        }
     }
 
-    public static function logitrail_payment_complete($this_id) {
+    public function logitrail_payment_complete($this_id) {
 		global $woocommerce, $post;
 
         $settings = get_option('woocommerce_logitrail_shipping_settings');
@@ -236,6 +284,10 @@ class Logitrail_WooCommerce {
         $result = $apic->confirmOrder($order_id);
 		// TODO: translate
 		echo "<br />Voit seurata toimitustasi osoitteessa: <a href='" . $result['tracking_url'] . "' target='_BLANK'>" . $result['tracking_url'] . "</a><br />";
+
+        if($this->debug_mode) {
+            $this->logitrail_debug_log('Confirmed order ' . $order_id . 'with details: ' . $order->shipping_first_name . ', ' . $order->shipping_last_name . ', ' . $order->billing_phone . ', ' . $order->billing_email . ', ' . $order->shipping_address_1 . ' ' . $order->shipping_address_2 . ', ' . $order->shipping_postcode . ', ' . $order->shipping_city);
+        }
 
 		delete_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_price');
 		delete_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_order_id');
@@ -346,6 +398,10 @@ class Logitrail_WooCommerce {
 			if(count($responses > 1) && $errors > 0) {
 				//wc_add_notice("Virhe " . $errors . " tuotteen kohdalla siirrettäessä " . count('$responses') . " tuotetta Logitrailille");
 			}
+
+            if($this->debug_mode) {
+                $this->logitrail_debug_log('Added product with info: ' . $product->get_sku() . ', ' . $product->get_title() . ', ' . 1 . ', ' . $product->get_weight() * 1000 . ', ' . $product->get_price_including_tax() . ', ' . 0 . ', ' . get_post_meta($post_id, 'barcode', true) . ', ' . $product->get_width() * 10 . ', ' . $product->get_height() * 10 . ', ' . $product->get_length() * 10);
+            }
 		}
 	}
 
@@ -368,7 +424,7 @@ class Logitrail_WooCommerce {
 	 * Export all vurrent products to Logitrail.
 	 * Called via AJAX
 	 */
-    public static function export_products() {
+    public function export_products() {
 		$settings = get_option('woocommerce_logitrail_shipping_settings');
 
 		$apic = new Logitrail\Lib\ApiClient();
@@ -390,6 +446,10 @@ class Logitrail_WooCommerce {
 			// weight for Logitrail goes in grams, dimensions in millimeter
 			$apic->addProduct($product->get_sku(), $product->get_title(), 1, $product->get_weight() * 1000, $product->get_price_including_tax(), 0, null, $product->get_width() * 10, $product->get_height() * 10, $product->get_length() * 10);
 
+            if($this->debug_mode) {
+                $this->logitrail_debug_log('Added product with info: ' . $product->get_sku() . ', ' . $product->get_title() . ', ' . 1 . ', ' . $product->get_weight() * 1000 . ', ' . $product->get_price_including_tax() . ', ' . 0 . ', ' . get_post_meta($post_id, 'barcode', true) . ', ' . $product->get_width() * 10 . ', ' . $product->get_height() * 10 . ', ' . $product->get_length() * 10);
+            }
+
 			// create products in batches of 5, so in big shops we don't get
 			// huge amount of products taking memory in ApiClient
 			$productsAdded++;
@@ -399,11 +459,19 @@ class Logitrail_WooCommerce {
 				$response = $apic->createProducts();
 				$apic->clearProducts();
 				$productsAdded = 0;
+
+                if($this->debug_mode) {
+                    $this->logitrail_debug_log('Created or updated added products and emptied products list,');
+                }
 			}
 		}
 
 		$response = $apic->createProducts();
 		$apic->clearProducts();
+
+        if($this->debug_mode) {
+            $this->logitrail_debug_log('Created or updated added products and emptied products list,');
+        }
 
 		wp_reset_query();
 	}
@@ -436,16 +504,29 @@ class Logitrail_WooCommerce {
 		// unset to force recalculation of cart total price when
 		// shipping price is changed
 
+        if($this->debug_mode) {
+            $rates26 = array();
+        }
+
 		// WooCommerce 2.6 cache
 		$packages = WC()->cart->get_shipping_packages();
 		foreach ($packages as $key => $value) {
 			$shipping_session = "shipping_for_package_$key";
 
 			unset(WC()->session->$shipping_session);
+
+            if($this->debug_mode) {
+                $rates26[] = print_r(WC()->session->$shipping_session, true);
+            }
+
 		}
 
 		// WooCommerce 2.5 cache
 		unset(WC()->session->shipping_for_package);
+
+        if($this->debug_mode) {
+            $this->logitrail_debug_log('Emptied caches: 2.5 (' . print_r(WC()->session->shipping_for_package, true) . '), 2.6 (' . implode(', ', $rates26) . ') ' . $_POST['postage']);
+        }
 	}
 
 	function logitrail_notifications() {
@@ -457,6 +538,57 @@ class Logitrail_WooCommerce {
 
 		set_transient('logitrail_' . wp_get_current_user()->ID . '_notifications', array());
 	}
+
+
+
+    // Functions related to debug logs
+
+    public static function get_debug_log() {
+        global $wpdb;
+
+        $sql = "SELECT * FROM `" . self::$tables['debug'] . "` LIMIT 100";
+        $results = $wpdb->get_results($sql, ARRAY_A);
+
+        $lines = array();
+        foreach($results as $id => $row) {
+            $lines[] = '<b>' . Date('d.m.Y H:i:s', $row['created_at']) . "</b> {$row['operation']}";
+        }
+
+        wp_send_json($lines);
+    }
+
+    public static function clear_debug_log() {
+        global $wpdb;
+
+        $delete = $wpdb->query("TRUNCATE TABLE `" . self::$tables['debug'] . "`");
+
+        wp_send_json(array('status' => 'success'));
+    }
+
+    public static function logitrail_debug_log($text) {
+        global $wpdb;
+
+        $wpsess = 'aa'; //WP_Session_Tokens::get();
+        $wpdb->insert( self::$tables['debug'], array('session' => $wpsess, 'operation' => $text, 'created_at' => time()) );
+    }
+
+    public static function logitrail_install() {
+        require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
+        $tables = self::$tables;
+
+        dbDelta( "CREATE TABLE IF NOT EXISTS `{$tables['debug']}` (
+                  `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                  `session` varchar(255) NOT NULL,
+                  `operation` varchar(255) NOT NULL,
+                  `created_at` int NOT NULL
+                ) ENGINE='InnoDB'" );
+
+        add_option( 'logitrail_db_version', self::$db_version );
+    }
+
+    public static function logitrail_uninstall() {
+        $delete = $wpdb->query("DROP TABLE `" . self::$tables['debug'] . "`");
+    }
 }
 
 new Logitrail_WooCommerce();

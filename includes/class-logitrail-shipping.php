@@ -48,6 +48,7 @@ class Logitrail_Shipping extends WC_Shipping_Method {
 
 		$this->fallback		   	= !empty( $this->settings['fallback'] ) ? $this->settings['fallback'] : '';
 		$this->test_server		= !empty( $this->settings['test_server'] ) ? $this->settings['test_server'] : '';
+		$this->debug_mode		= !empty( $this->settings['debug_mode'] ) ? $this->settings['debug_mode'] : '';
 
 		add_action( 'woocommerce_update_options_shipping_' . $this->id, array( $this, 'process_admin_options' ) );
 
@@ -149,6 +150,13 @@ class Logitrail_Shipping extends WC_Shipping_Method {
 			'default'	=> false,
 			'desc_tip'	=> true
 	    ),
+	    'debug_mode'=> array(
+			'title'		=> __( 'Debug mode', 'logitrail-woocommerce' ),
+			'label'		=> __( 'Log debug data which tells more about what\'s happening.<br /><a href="#" class="debug-log">Show Debug log</a>', 'logitrail-woocommerce' ),
+			'type'		=> 'checkbox',
+			'default'	=> false,
+			'desc_tip'	=> true
+	    ),
 	    'export_products'=> array(
 			'title'		=> __( 'Export products', 'logitrail-woocommerce' ),
 			'label'		=> __( "Export all current products to Logitrail's system<br />(will happen once after option is selected, then option is reset to not selected)", 'logitrail-woocommerce' ),
@@ -178,11 +186,17 @@ class Logitrail_Shipping extends WC_Shipping_Method {
 			$title = ($type && array_key_exists($type, $shipping_methods) ? $shipping_methods[$type] : 'Toimitustapaa ei ole valittu');
 		}
 
+        $postage = get_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_price');
         $this->add_rate( array(
                 'id' 	=> $this->id . '_postage',
                 'label' => $title,
-				'cost' 	=> get_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_price'),
+				'cost' 	=> get_transient('logitrail_' . $postage),
                 'sort'  => 0
         ) );
+
+        $debug_mode = ($this->settings['debug_mode'] === 'yes' ? true : false);
+        if($debug_mode) {
+            Logitrail_WooCommerce::logitrail_debug_log('Informing WooCommerce postage as ' . $postage);
+        }
     }
 }
