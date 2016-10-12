@@ -190,7 +190,7 @@ class Logitrail_Shipping extends WC_Shipping_Method {
         $this->add_rate( array(
                 'id' 	=> $this->id . '_postage',
                 'label' => $title,
-				'cost' 	=> get_transient('logitrail_' . $postage),
+				'cost' 	=> $postage,
                 'sort'  => 0
         ) );
 
