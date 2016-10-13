@@ -3,7 +3,7 @@
 /*
     Plugin Name: Logitrail
     Description: Integrate checkout shipping with Logitrail
-    Version: 0.0.13
+    Version: 0.0.14
     Author: <a href="mailto:petri@codaone.fi">Petri Kanerva</a> | <a href="http://www.codaone.fi/">Codaone Oy</a>
 */
 
@@ -546,7 +546,7 @@ class Logitrail_WooCommerce {
     public static function get_debug_log() {
         global $wpdb;
 
-        $sql = "SELECT * FROM `" . self::$tables['debug'] . "` LIMIT 100";
+        $sql = "SELECT * FROM `" . self::$tables['debug'] . "` ORDER BY created_at DESC LIMIT 100";
         $results = $wpdb->get_results($sql, ARRAY_A);
 
         $lines = array();
