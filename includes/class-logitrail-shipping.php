@@ -176,7 +176,7 @@ class Logitrail_Shipping extends WC_Shipping_Method {
      * @param mixed $package
      * @return void
      */
-    public function calculate_shipping( $package ) {
+    public function calculate_shipping( $package = Array() ) {
     	global $woocommerce;
 
 		$shipping_methods = array('pickup' => 'Nouto', 'letter' => 'Kirje', 'home' => 'Ovelle');
