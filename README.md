@@ -1,6 +1,6 @@
 Logitrail WooCommerce integration
 
-Tested with WooCommerce 2.5 and 2.6 until 2.6.3. Unexpected behavior might
+Tested with WooCommerce 2.5 and 2.6 until 2.6.5. Unexpected behavior might
 occur when used with other versions.
 
 Different themes might implement checkout page differently than intended, or
