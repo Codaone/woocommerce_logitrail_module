@@ -15,6 +15,19 @@ function doLogitrailCheckout() {
 		return;
 	}
 
+	// Reset logitrail data on checkout updates
+    jQuery(document).ready(function($) {
+        $.ajax({
+            url: '/index.php/checkout/?wc-ajax=logitrail_setprice',
+            method: 'post',
+            data: {
+                'postage': '',
+                'order_id': '',
+                'delivery_type': ''
+            }
+        });
+    });
+
 	// timeout for some manner of debounce, tweak time based on need
 	clearTimeout(logitrailTimeout);
 

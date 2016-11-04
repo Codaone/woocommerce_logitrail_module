@@ -84,6 +84,8 @@ class Logitrail_WooCommerce {
 
 		add_action( 'admin_notices', array($this, 'logitrail_notifications'));
 
+        add_action('woocommerce_after_checkout_validation', array(&$this, 'validate_shipping_method'));
+
         // add possbile table prefix for db tables to be created
         global $wpdb;
         foreach (self::$tables as $name => &$table){
@@ -95,7 +97,15 @@ class Logitrail_WooCommerce {
 		$this->debug_mode = ($settings['debug_mode'] === 'yes' ? true : false);
     }
 
-	/**
+    public function validate_shipping_method($data = '') {
+        global $woocommerce;
+        $shipping_method = get_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_type');
+        if (!$shipping_method) {
+            wc_add_notice( apply_filters( 'woocommerce_checkout_required_field_notice', 'Valitse toimitustapa.'), 'error' );
+        }
+    }
+
+        /**
 	 * Add new endpoints.
 	 */
 	public static function add_endpoint() {
