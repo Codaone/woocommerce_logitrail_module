@@ -3,7 +3,7 @@
 /*
     Plugin Name: Logitrail
     Description: Integrate checkout shipping with Logitrail
-    Version: 0.0.14
+    Version: 0.0.15
     Author: <a href="mailto:petri@codaone.fi">Petri Kanerva</a> | <a href="http://www.codaone.fi/">Codaone Oy</a>
 */
 
@@ -350,69 +350,69 @@ class Logitrail_WooCommerce {
 	}
 
 	function logitrail_create_product($post_id) {
-		global $woocommerce;
+        if ( get_post_status ( $post_id ) == 'publish' ) {
+            global $woocommerce;
 
-		$settings = get_option('woocommerce_logitrail_shipping_settings');
+            $settings = get_option( 'woocommerce_logitrail_shipping_settings' );
 
-		$product = wc_get_product($post_id);
+            $product = wc_get_product( $post_id );
 
-		if(!$product) {
-			return;
-		}
-
-		$apic = new Logitrail\Lib\ApiClient();
-		$test_server = ($settings['test_server'] === 'yes' ? true : false);
-		$apic->useTest($test_server);
-
-		$apic->setMerchantId($settings['merchant_id']);
-		$apic->setSecretKey($settings['secret_key']);
-
-		if(!$product->get_sku()) {
-			$notifications = get_transient('logitrail_' . wp_get_current_user()->ID . '_notifications');
-			$notifications[] =
-				array(
-					'class' => 'notice notice-error',
-					'message' => 'SKU puuttuu tuotteesta "' . $product->get_title() . '". Tuotetta ei voitu viedä Logitrailin järjestelmään.'
-				);
-
-	        set_transient('logitrail_' . wp_get_current_user()->ID . '_notifications', $notifications);
-		}
-		else {
-			// weight for Logitrail goes in grams, dimensions in millimeter
-			$apic->addProduct($product->get_sku(), $product->get_title(), 1, $product->get_weight() * 1000, $product->get_price_including_tax(), 0, get_post_meta($post_id, 'barcode', true), $product->get_width() * 10, $product->get_height() * 10, $product->get_length() * 10);
-
-			$responses = $apic->createProducts();
-			$errors = 0;
-
-			foreach($responses as $response) {
-				if(!$response['success']) {
-					// if we have more than one product, don't report each
-					// separately, but just as a count
-					if(count($responses == 1)) {
-						//wc_add_notice("Virhe siirrettäessä tuotetta Logitrailille", "notice");
-						$notifications = get_transient('logitrail_' . wp_get_current_user()->ID . '_notifications');
-						$notifications[] =
-							array(
-								'class' => 'notice notice-error',
-								'message' => 'Virhe siirrettäessä tuotetta Logitrailille.'
-							);
-
-						set_transient('logitrail_' . wp_get_current_user()->ID . '_notifications', $notifications);
-					}
-					else {
-						$errors++;
-					}
-				}
-			}
-
-			if(count($responses > 1) && $errors > 0) {
-				//wc_add_notice("Virhe " . $errors . " tuotteen kohdalla siirrettäessä " . count('$responses') . " tuotetta Logitrailille");
-			}
-
-            if($this->debug_mode) {
-                $this->logitrail_debug_log('Added product with info: ' . $product->get_sku() . ', ' . $product->get_title() . ', ' . 1 . ', ' . $product->get_weight() * 1000 . ', ' . $product->get_price_including_tax() . ', ' . 0 . ', ' . get_post_meta($post_id, 'barcode', true) . ', ' . $product->get_width() * 10 . ', ' . $product->get_height() * 10 . ', ' . $product->get_length() * 10);
+            if ( ! $product ) {
+                return;
             }
-		}
+
+            $apic        = new Logitrail\Lib\ApiClient();
+            $test_server = ( $settings['test_server'] === 'yes' ? true : false );
+            $apic->useTest( $test_server );
+
+            $apic->setMerchantId( $settings['merchant_id'] );
+            $apic->setSecretKey( $settings['secret_key'] );
+
+            if ( ! $product->get_sku() ) {
+                $notifications   = get_transient( 'logitrail_' . wp_get_current_user()->ID . '_notifications' );
+                $notifications[] =
+                    array(
+                        'class'   => 'notice notice-error',
+                        'message' => 'SKU puuttuu tuotteesta "' . $product->get_title() . '". Tuotetta ei voitu viedä Logitrailin järjestelmään.'
+                    );
+
+                set_transient( 'logitrail_' . wp_get_current_user()->ID . '_notifications', $notifications );
+            } else {
+                // weight for Logitrail goes in grams, dimensions in millimeter
+                $apic->addProduct( $product->get_sku(), $product->get_title(), 1, $product->get_weight() * 1000, $product->get_price_including_tax(), 0, get_post_meta( $post_id, 'barcode', true ), $product->get_width() * 10, $product->get_height() * 10, $product->get_length() * 10 );
+
+                $responses = $apic->createProducts();
+                $errors    = 0;
+
+                foreach ( $responses as $response ) {
+                    if ( ! $response['success'] ) {
+                        // if we have more than one product, don't report each
+                        // separately, but just as a count
+                        if ( count( $responses == 1 ) ) {
+                            //wc_add_notice("Virhe siirrettäessä tuotetta Logitrailille", "notice");
+                            $notifications   = get_transient( 'logitrail_' . wp_get_current_user()->ID . '_notifications' );
+                            $notifications[] =
+                                array(
+                                    'class'   => 'notice notice-error',
+                                    'message' => 'Virhe siirrettäessä tuotetta Logitrailille.'
+                                );
+
+                            set_transient( 'logitrail_' . wp_get_current_user()->ID . '_notifications', $notifications );
+                        } else {
+                            $errors ++;
+                        }
+                    }
+                }
+
+                if ( count( $responses > 1 ) && $errors > 0 ) {
+                    //wc_add_notice("Virhe " . $errors . " tuotteen kohdalla siirrettäessä " . count('$responses') . " tuotetta Logitrailille");
+                }
+
+                if ( $this->debug_mode ) {
+                    $this->logitrail_debug_log( 'Added product with info: ' . $product->get_sku() . ', ' . $product->get_title() . ', ' . 1 . ', ' . $product->get_weight() * 1000 . ', ' . $product->get_price_including_tax() . ', ' . 0 . ', ' . get_post_meta( $post_id, 'barcode', true ) . ', ' . $product->get_width() * 10 . ', ' . $product->get_height() * 10 . ', ' . $product->get_length() * 10 );
+                }
+            }
+        }
 	}
 
 	/**
