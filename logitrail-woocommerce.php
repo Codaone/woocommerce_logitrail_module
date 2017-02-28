@@ -86,6 +86,8 @@ class Logitrail_WooCommerce {
 
         add_action('woocommerce_after_checkout_validation', array(&$this, 'validate_shipping_method'));
 
+        add_action( 'rest_api_init',  array($this, 'register_api_hooks' ));
+
         // add possbile table prefix for db tables to be created
         global $wpdb;
         foreach (self::$tables as $name => &$table){
@@ -598,6 +600,18 @@ class Logitrail_WooCommerce {
 
     public static function logitrail_uninstall() {
         $delete = $wpdb->query("DROP TABLE `" . self::$tables['debug'] . "`");
+    }
+
+    function register_api_hooks() {
+        register_rest_route( 'logitrail', '/update/', array(
+            'methods' => 'POST',
+            'callback' => 'update_product',
+        ) );
+    }
+
+    function update_product() {
+        $post_body = file_get_contents('php://input');
+        file_put_contents ('file.txt', print_r($post_body, true), FILE_APPEND);
     }
 }
 
