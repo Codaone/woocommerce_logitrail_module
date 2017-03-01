@@ -610,21 +610,22 @@ class Logitrail_WooCommerce {
     function update_product() {
         global $wpdb;
         $apic = new Logitrail\Lib\ApiClient();
-        $hash = substr(apache_request_headers()['Authorization'], 6);
+        $hash = explode(' ', apache_request_headers()['Authorization'])[1];
         $auth = explode(':', base64_decode($hash));
 
         if ($auth[0] == get_option('woocommerce_logitrail_shipping_merchant_id') && $auth[1] == get_option('woocommerce_logitrail_shipping_secret_key')) {
             $received_data = $apic->processWebhookData(file_get_contents('php://input'));
-            $wpdb->insert(self::$tables['log'], array(
-                'event_id' => $received_data['event_id'],
-                'event_type' => $received_data['event_type'],
-                'webhook_id' => $received_data['webhook_id'],
-                'timestamp' => $received_data['imestamp'],
-                'retry_count' => $received_data['retry_count'],
-                'payload' => json_encode($received_data['payload'])
-            ));
 
             if ($received_data) {
+                $wpdb->insert(self::$tables['log'], array(
+                    'event_id' => $received_data['event_id'],
+                    'event_type' => $received_data['event_type'],
+                    'webhook_id' => $received_data['webhook_id'],
+                    'timestamp' => $received_data['timestamp'],
+                    'retry_count' => $received_data['retry_count'],
+                    'payload' => json_encode($received_data['payload'])
+                ));
+
                 switch($received_data['event_type']) {
                     case "product.inventory.change":
                         foreach ($received_data['payload'] as $product) {
