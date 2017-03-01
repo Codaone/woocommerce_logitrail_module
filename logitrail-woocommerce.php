@@ -597,7 +597,9 @@ class Logitrail_WooCommerce {
     }
 
     public static function logitrail_uninstall() {
-        $delete = $wpdb->query("DROP TABLE `" . self::$tables['debug'] . "`");
+        global $wpdb;
+        $wpdb->query("DROP TABLE `" . self::$tables['debug'] . "`");
+        $wpdb->query("DROP TABLE `" . self::$tables['log'] . "`");
     }
 
     function register_api_hooks() {
