@@ -3,7 +3,7 @@
 /*
     Plugin Name: Logitrail
     Description: Integrate checkout shipping with Logitrail
-    Version: 0.0.15
+    Version: 0.0.2
     Author: <a href="mailto:petri@codaone.fi">Petri Kanerva</a> | <a href="http://www.codaone.fi/">Codaone Oy</a>
 */
 
@@ -32,9 +32,10 @@ define("LOGITRAIL_ID", "logitrail_shipping");
 
 class Logitrail_WooCommerce {
 
-    protected static $db_version = '0.1';
+    protected static $db_version = '0.2';
     protected static $tables = array(
-        'debug' => 'logitrail_debug'
+        'debug' => 'logitrail_debug',
+        'log'   => 'logitrail_webhook_log'
     );
 
     private $merchant_id;
@@ -87,6 +88,8 @@ class Logitrail_WooCommerce {
         add_action('woocommerce_after_checkout_validation', array(&$this, 'validate_shipping_method'));
 
         add_action( 'rest_api_init',  array($this, 'register_api_hooks' ));
+
+        add_action( 'plugins_loaded', array($this, 'logitrail_update_db_check' ));
 
         // add possbile table prefix for db tables to be created
         global $wpdb;
@@ -330,27 +333,6 @@ class Logitrail_WooCommerce {
         $woocommerce->shipping->packages = $packages;
     }
 
-    public static function handle_product_import() {
-        $received_data = '{"event_id":"57761f66cd2f27b12d8b45cf","webhook_id":"5763d8c33e250d3a548b4568","event_type":"product.inventory.change","ts":"2016-07-01T07:44:38+00:00","retry_count":0,"payload":'
-                            . '{'
-                                . '"product":{"id":"573ed8d63e250d0b5f8b4567","merchants_id":"7","name":"Puteli","weight":20,"dimensions":[33,55,22],"gtin":"545"},'
-                                . '"product2":{"id":"573ed8d63e250d0b5f8b4567","merchants_id":"7","name":"Auteli","weight":20,"dimensions":[33,55,22],"gtin":"545"}'
-                            . '}'
-                        . '}';
-        $received_data = json_decode($received_data);
-
-        switch($received_data->event_type) {
-            case "product.inventory.change":
-                foreach ($received_data->payload as $product) {
-                    // FIXME: Parts of webhooks implementation is missing from
-                    // Logitrail. Finish this side of them after finalization.
-
-                    //wc_update_product_stock($product->merchants_id/*, NEW STOCK AMOUNT*/);
-                }
-                break;
-        }
-    }
-
     function logitrail_create_product($post_id) {
         if ( get_post_status ( $post_id ) == 'publish' ) {
             global $woocommerce;
@@ -588,14 +570,30 @@ class Logitrail_WooCommerce {
         require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
         $tables = self::$tables;
 
-        dbDelta( "CREATE TABLE IF NOT EXISTS `{$tables['debug']}` (
+        dbDelta( "CREATE TABLE `{$tables['debug']}` (
                   `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,
                   `session` varchar(255) NOT NULL,
                   `operation` varchar(255) NOT NULL,
                   `created_at` int NOT NULL
                 ) ENGINE='InnoDB'" );
 
-        add_option( 'logitrail_db_version', self::$db_version );
+        dbDelta( "CREATE TABLE `{$tables['log']}` (
+                  `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                  `event_id` varchar(255) NOT NULL,
+                  `event_type` varchar(255) NOT NULL,
+                  `webhook_id` varchar(255) NOT NULL,
+                  `timestamp` int NOT NULL,
+                  `retry_count` int NOT NULL,
+                  `payload` text NOT NULL
+                ) ENGINE='InnoDB'" );
+
+        update_option( 'logitrail_db_version', self::$db_version );
+    }
+
+    function logitrail_update_db_check() {
+        if ( get_option( 'logitrail_db_version' ) != self::$db_version ) {
+            $this->logitrail_install();
+        }
     }
 
     public static function logitrail_uninstall() {
@@ -605,13 +603,37 @@ class Logitrail_WooCommerce {
     function register_api_hooks() {
         register_rest_route( 'logitrail', '/update/', array(
             'methods' => 'POST',
-            'callback' => 'update_product',
+            'callback' => array($this, 'update_product'),
         ) );
     }
 
     function update_product() {
-        $post_body = file_get_contents('php://input');
-        file_put_contents ('file.txt', print_r($post_body, true), FILE_APPEND);
+        global $wpdb;
+        $apic = new Logitrail\Lib\ApiClient();
+        $hash = substr(apache_request_headers()['Authorization'], 6);
+        $auth = explode(':', base64_decode($hash));
+
+        if ($auth[0] == get_option('woocommerce_logitrail_shipping_merchant_id') && $auth[1] == get_option('woocommerce_logitrail_shipping_secret_key')) {
+            $received_data = $apic->processWebhookData(file_get_contents('php://input'));
+            $wpdb->insert(self::$tables['log'], array(
+                'event_id' => $received_data['event_id'],
+                'event_type' => $received_data['event_type'],
+                'webhook_id' => $received_data['webhook_id'],
+                'timestamp' => $received_data['imestamp'],
+                'retry_count' => $received_data['retry_count'],
+                'payload' => json_encode($received_data['payload'])
+            ));
+
+            if ($received_data) {
+                switch($received_data['event_type']) {
+                    case "product.inventory.change":
+                        foreach ($received_data['payload'] as $product) {
+                            wc_update_product_stock($product['merchants_id'], $product['inventory']['available']);
+                        }
+                        break;
+                }
+            }
+        }
     }
 }
 
