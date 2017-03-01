@@ -614,8 +614,9 @@ class Logitrail_WooCommerce {
         $apic = new Logitrail\Lib\ApiClient();
         $hash = explode(' ', apache_request_headers()['Authorization'])[1];
         $auth = explode(':', base64_decode($hash));
+        $settings = get_option('woocommerce_logitrail_shipping_settings');
 
-        if ($auth[0] == get_option('woocommerce_logitrail_shipping_merchant_id') && $auth[1] == get_option('woocommerce_logitrail_shipping_secret_key')) {
+        if ($auth[0] == $settings['merchant_id'] && $auth[1] == $settings['secret_key']) {
             $received_data = $apic->processWebhookData(file_get_contents('php://input'));
 
             if ($received_data) {
