@@ -66,8 +66,6 @@ class Logitrail_WooCommerce {
         add_action( 'wc_ajax_logitrail_debug_log', array( $this, 'get_debug_log' ) );
         add_action( 'wc_ajax_logitrail_debug_log_clear', array( $this, 'clear_debug_log' ) );
 
-        add_action( 'parse_request', array( $this, 'handle_product_import' ), 0 );
-
         add_filter( 'woocommerce_locate_template', array($this, 'logitrail_woocommerce_locate_template'), 10, 3 );
 
         add_action( 'woocommerce_review_order_before_shipping', array($this, 'logitrail_woocommerce_review_order_before_shipping'), 5, 1 );
@@ -624,7 +622,7 @@ class Logitrail_WooCommerce {
                     'event_id' => $received_data['event_id'],
                     'event_type' => $received_data['event_type'],
                     'webhook_id' => $received_data['webhook_id'],
-                    'timestamp' => $received_data['timestamp'],
+                    'timestamp' => $received_data['ts'],
                     'retry_count' => $received_data['retry_count'],
                     'payload' => json_encode($received_data['payload'])
                 ));
