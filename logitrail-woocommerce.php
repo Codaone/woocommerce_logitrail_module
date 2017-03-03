@@ -243,8 +243,12 @@ class Logitrail_WooCommerce {
             }
 
         }
-
-        $form = $apic->getForm();
+        $lang = explode('_', get_locale())[0];
+        if ($lang) {
+            $form = $apic->getForm($lang);
+        } else {
+            $form = $apic->getForm();
+        }
         echo $form;
 
         if($this->debug_mode) {
