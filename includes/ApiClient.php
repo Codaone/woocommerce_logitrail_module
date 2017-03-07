@@ -14,6 +14,7 @@ class ApiClient {
     private $city;
     private $email;
     private $phone;
+    private $companyName;
     private $products = array();
 
     private $responseAsRaw = false;
@@ -122,14 +123,15 @@ class ApiClient {
      * @param string $postalCode
      * @param string $city
      */
-    public function setCustomerInfo($firstname, $lastname, $phone, $email, $address, $postalCode, $city) {
+    public function setCustomerInfo($firstname, $lastname, $phone, $email, $address, $postalCode, $city, $companyName) {
         $this->firstName = $firstname;
         $this->lastName = $lastname;
         $this->address = $address;
         $this->postalCode = $postalCode;
         $this->city = $city;
-		$this->phone = $phone;
-		$this->email = $email;
+        $this->phone = $phone;
+        $this->email = $email;
+        $this->companyName = $companyName;
     }
 
     /**
@@ -198,7 +200,8 @@ class ApiClient {
 			'phoneNumber' => $this->phone,
 			'address' => $this->address,
 			'city' => $this->city,
-			'postalCode' => $this->postalCode
+			'postalCode' => $this->postalCode,
+			'organizationName' => $this->companyName
 			)
 		);
 
