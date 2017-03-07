@@ -103,7 +103,8 @@ class Logitrail_WooCommerce {
     public function validate_shipping_method($data = '') {
         global $woocommerce;
         $shipping_method = get_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_type');
-        if (!$shipping_method) {
+        $shippable = get_transient('logitrail_'. $woocommerce->session->get_session_cookie()[3] . '_shipping');
+        if (!$shipping_method && $shippable) {
             wc_add_notice( apply_filters( 'woocommerce_checkout_required_field_notice', 'Valitse toimitustapa.'), 'error' );
         }
     }
@@ -220,12 +221,17 @@ class Logitrail_WooCommerce {
 
         $cartContent = $woocommerce->cart->get_cart();
 
+        $shipping_count = 0;
+
         foreach($cartContent as $cartItem) {
+            /** @var WC_Product $product */
+            $product = $cartItem['data'];
+
             $taxes = WC_Tax::find_rates(array(
                 'city' => $city,
                 'postcode' => $postcode,
                 'country' => $country,
-                'tax_class' => $cartItem['data']->get_tax_class()
+                'tax_class' => $product->get_tax_class()
             ));
 
             if(count($taxes) > 0) {
@@ -236,7 +242,17 @@ class Logitrail_WooCommerce {
                 $tax = 0;
             }
 
-            $apic->addProduct($cartItem['data']->get_sku(), $cartItem['data']->get_title(), $cartItem['quantity'], $cartItem['data']->get_weight() * 1000, $cartItem['data']->get_price_including_tax(), $tax);
+            if (!$product->is_downloadable() && !$product->is_virtual()) {
+                $apic->addProduct(
+                    $product->get_sku(),
+                    $product->get_title(),
+                    $cartItem['quantity'],
+                    $product->get_weight() * 1000,
+                    $product->get_price_including_tax(),
+                    $tax
+                );
+                $shipping_count++;
+            }
 
             if($this->debug_mode) {
                 $this->logitrail_debug_log('Form, added product with data: ' . '""' . ', ' . '""' . ', ' . '""' . ', ' . '""' . ', ' .  $address . ', ' . $postcode . ', ' . $city);
@@ -249,7 +265,13 @@ class Logitrail_WooCommerce {
         } else {
             $form = $apic->getForm();
         }
-        echo $form;
+        if ($shipping_count > 0) {
+            set_transient('logitrail_shipping', true);
+            echo $form;
+        } else {
+            set_transient('logitrail_shipping', false);
+        }
+
 
         if($this->debug_mode) {
             $this->logitrail_debug_log('Form, returned via ajax');
@@ -365,7 +387,20 @@ class Logitrail_WooCommerce {
                 set_transient( 'logitrail_' . wp_get_current_user()->ID . '_notifications', $notifications );
             } else {
                 // weight for Logitrail goes in grams, dimensions in millimeter
-                $apic->addProduct( $product->get_sku(), $product->get_title(), 1, $product->get_weight() * 1000, $product->get_price_including_tax(), 0, get_post_meta( $post_id, 'barcode', true ), $product->get_width() * 10, $product->get_height() * 10, $product->get_length() * 10 );
+                if (!$product->is_downloadable() && !$product->is_virtual()) {
+                    $apic->addProduct(
+                        $product->get_sku(),
+                        $product->get_title(),
+                        1,
+                        $product->get_weight() * 1000,
+                        $product->get_price_including_tax(),
+                        0,
+                        get_post_meta( $post_id, 'barcode', true ),
+                        $product->get_width() * 10,
+                        $product->get_height() * 10,
+                        $product->get_length() * 10
+                    );
+                }
 
                 $responses = $apic->createProducts();
                 $errors    = 0;
@@ -439,8 +474,21 @@ class Logitrail_WooCommerce {
             $post_id = get_the_ID();
             $product = wc_get_product($post_id);
 
-            // weight for Logitrail goes in grams, dimensions in millimeter
-            $apic->addProduct($product->get_sku(), $product->get_title(), 1, $product->get_weight() * 1000, $product->get_price_including_tax(), 0, null, $product->get_width() * 10, $product->get_height() * 10, $product->get_length() * 10);
+            if (!$product->is_downloadable() && !$product->is_virtual()) {
+                // weight for Logitrail goes in grams, dimensions in millimeter
+                $apic->addProduct(
+                    $product->get_sku(),
+                    $product->get_title(),
+                    1,
+                    $product->get_weight() * 1000,
+                    $product->get_price_including_tax(),
+                    0,
+                    null,
+                    $product->get_width() * 10,
+                    $product->get_height() * 10,
+                    $product->get_length() * 10
+                );
+            }
 
             if($this->debug_mode) {
                 $this->logitrail_debug_log('Added product with info: ' . $product->get_sku() . ', ' . $product->get_title() . ', ' . 1 . ', ' . $product->get_weight() * 1000 . ', ' . $product->get_price_including_tax() . ', ' . 0 . ', ' . get_post_meta($post_id, 'barcode', true) . ', ' . $product->get_width() * 10 . ', ' . $product->get_height() * 10 . ', ' . $product->get_length() * 10);
