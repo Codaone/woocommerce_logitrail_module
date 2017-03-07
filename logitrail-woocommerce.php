@@ -81,6 +81,9 @@ class Logitrail_WooCommerce {
         add_action( 'woocommerce_product_options_general_product_data', array($this, 'logitrail_add_barcode'));
         add_action( 'woocommerce_process_product_meta', array($this, 'logitrail_barcode_save'));
 
+        add_action( 'woocommerce_product_options_shipping', array($this, 'add_enable_logitrail_shipping'));
+        add_action( 'woocommerce_process_product_meta', array($this, 'enable_logitrail_shipping_save'));
+
         add_action( 'admin_notices', array($this, 'logitrail_notifications'));
 
         add_action('woocommerce_after_checkout_validation', array(&$this, 'validate_shipping_method'));
@@ -242,7 +245,7 @@ class Logitrail_WooCommerce {
                 $tax = 0;
             }
 
-            if (!$product->is_downloadable() && !$product->is_virtual()) {
+            if (!$product->is_downloadable() && !$product->is_virtual() && $this->logitrail_shipping_enabled($product->get_id())) {
                 $apic->addProduct(
                     $product->get_sku(),
                     $product->get_title(),
@@ -387,7 +390,7 @@ class Logitrail_WooCommerce {
                 set_transient( 'logitrail_' . wp_get_current_user()->ID . '_notifications', $notifications );
             } else {
                 // weight for Logitrail goes in grams, dimensions in millimeter
-                if (!$product->is_downloadable() && !$product->is_virtual()) {
+                if (!$product->is_downloadable() && !$product->is_virtual() && $this->logitrail_shipping_enabled($product->get_id())) {
                     $apic->addProduct(
                         $product->get_sku(),
                         $product->get_title(),
@@ -474,7 +477,7 @@ class Logitrail_WooCommerce {
             $post_id = get_the_ID();
             $product = wc_get_product($post_id);
 
-            if (!$product->is_downloadable() && !$product->is_virtual()) {
+            if (!$product->is_downloadable() && !$product->is_virtual() && $this->logitrail_shipping_enabled($product->get_id())) {
                 // weight for Logitrail goes in grams, dimensions in millimeter
                 $apic->addProduct(
                     $product->get_sku(),
@@ -532,6 +535,21 @@ class Logitrail_WooCommerce {
         );
     }
 
+    public static function add_enable_logitrail_shipping() {
+        global $post;
+        $value = Logitrail_WooCommerce::logitrail_shipping_enabled($post->ID);
+        woocommerce_wp_checkbox(
+            array(
+                'id' => 'enable_logitrail_shipping',
+                'label' => __( 'Enable shipping via Logitrail', 'woocommerce' ),
+                'cbvalue' => true,
+                'value' => $value,
+                'desc_tip' => 'true',
+                'description' => __( 'Use logitrail to handle shipping', 'woocommerce' )
+            )
+        );
+    }
+
     function logitrail_barcode_save($post_id){
 
         // Saving Barcode
@@ -541,6 +559,12 @@ class Logitrail_WooCommerce {
         }
         else {
             update_post_meta( $post_id, 'barcode', esc_attr( $barcode ) );
+        }
+    }
+
+    function logitrail_enable_logitrail_shipping_save($post_id) {
+        if( !empty($_POST['enable_logitrail_shipping']) ) {
+            update_post_meta( $post_id, 'enable_logitrail_shipping', esc_attr( $_POST['enable_logitrail_shipping'] ) );
         }
     }
 
@@ -687,6 +711,15 @@ class Logitrail_WooCommerce {
                         break;
                 }
             }
+        }
+    }
+
+    public static function  logitrail_shipping_enabled($product_id) {
+        $shipping = get_post_meta($product_id, 'enable_logitrail_shipping', true);
+        if ( $shipping || $shipping === "") {
+            return true;
+        } else {
+            return false;
         }
     }
 }
