@@ -245,7 +245,7 @@ class Logitrail_WooCommerce {
                 $tax = 0;
             }
 
-            if (!$product->is_downloadable() && !$product->is_virtual() && $this->logitrail_shipping_enabled($product->get_id())) {
+            if (!$product->is_downloadable() && $this->logitrail_shipping_enabled($product->get_id())) {
                 $apic->addProduct(
                     $product->get_sku(),
                     $product->get_title(),
@@ -390,7 +390,7 @@ class Logitrail_WooCommerce {
                 set_transient( 'logitrail_' . wp_get_current_user()->ID . '_notifications', $notifications );
             } else {
                 // weight for Logitrail goes in grams, dimensions in millimeter
-                if (!$product->is_downloadable() && !$product->is_virtual() && $this->logitrail_shipping_enabled($product->get_id())) {
+                if (!$product->is_downloadable() && $this->logitrail_shipping_enabled($product->get_id())) {
                     $apic->addProduct(
                         $product->get_sku(),
                         $product->get_title(),
@@ -477,7 +477,7 @@ class Logitrail_WooCommerce {
             $post_id = get_the_ID();
             $product = wc_get_product($post_id);
 
-            if (!$product->is_downloadable() && !$product->is_virtual() && $this->logitrail_shipping_enabled($product->get_id())) {
+            if (!$product->is_downloadable() && $this->logitrail_shipping_enabled($product->get_id())) {
                 // weight for Logitrail goes in grams, dimensions in millimeter
                 $apic->addProduct(
                     $product->get_sku(),
@@ -732,6 +732,12 @@ class Logitrail_WooCommerce {
     }
 
     public static function  logitrail_shipping_enabled($product_id) {
+        $product = wc_get_product( $product_id );
+        // Disable shipping on some product types
+        if ( in_array($product->get_type(), array("bundle")) ) {
+            return false;
+        }
+
         $shipping = get_post_meta($product_id, 'enable_logitrail_shipping', true);
         if ( $shipping || $shipping === "") {
             return true;
