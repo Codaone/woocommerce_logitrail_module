@@ -32,7 +32,7 @@ define("LOGITRAIL_ID", "logitrail_shipping");
 
 class Logitrail_WooCommerce {
 
-    protected static $db_version = '0.2';
+    protected static $db_version = '0.2.1';
     protected static $tables = array(
         'debug' => 'logitrail_debug',
         'log'   => 'logitrail_webhook_log'
@@ -643,6 +643,7 @@ class Logitrail_WooCommerce {
     public static function logitrail_install() {
         require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
         $tables = self::$tables;
+        $settings = get_option('woocommerce_logitrail_shipping_settings');
 
         dbDelta( "CREATE TABLE `{$tables['debug']}` (
                   `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -660,6 +661,20 @@ class Logitrail_WooCommerce {
                   `retry_count` int NOT NULL,
                   `payload` text NOT NULL
                 ) ENGINE='InnoDB'" );
+
+        $username = wp_generate_password(8, false);
+        $password = wp_generate_password(12, false);
+
+        if (!( isset($settings['webhook_username']) && !$settings['webhook_username'] == "" ) ||
+        !( isset($settings['webhook_password']) && !$settings['webhook_password'] == "" )) {
+            if (!isset($settings['webhook_username']) || $settings['webhook_password'] == "") {
+                $settings['webhook_username'] = $username;
+            }
+            if (!isset($settings['webhook_username']) || $settings['webhook_password'] == "") {
+                $settings['webhook_password'] = $password;
+            }
+            update_option('woocommerce_logitrail_shipping_settings', $settings);
+        }
 
         update_option( 'logitrail_db_version', self::$db_version );
     }
@@ -690,7 +705,7 @@ class Logitrail_WooCommerce {
         $auth = explode(':', base64_decode($hash));
         $settings = get_option('woocommerce_logitrail_shipping_settings');
 
-        if ($auth[0] == $settings['merchant_id'] && $auth[1] == $settings['secret_key']) {
+        if ($auth[0] == $settings['webhook_username'] && $auth[1] == $settings['webhook_password']) {
             $received_data = $apic->processWebhookData(file_get_contents('php://input'));
 
             if ($received_data) {
