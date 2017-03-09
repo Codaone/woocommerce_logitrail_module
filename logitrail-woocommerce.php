@@ -491,6 +491,8 @@ class Logitrail_WooCommerce {
                     $product->get_height() * 10,
                     $product->get_length() * 10
                 );
+                $productsAdded++;
+                $productsAddedTotal++;
             }
 
             if($this->debug_mode) {
@@ -499,9 +501,8 @@ class Logitrail_WooCommerce {
 
             // create products in batches of 5, so in big shops we don't get
             // huge amount of products taking memory in ApiClient
-            $productsAdded++;
-            $productsAddedTotal++;
-            if($productsAdded > 5) {
+            // Remaining products will be added after the loop
+            if($productsAdded >= 5) {
                 // TODO: Add error handling/reposting when Logitrail's errors are sorted out, ie. they don't send HTML instead of JSON on error
                 $response = $apic->createProducts();
                 $apic->clearProducts();
