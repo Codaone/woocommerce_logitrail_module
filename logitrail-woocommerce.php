@@ -562,9 +562,11 @@ class Logitrail_WooCommerce {
         }
     }
 
-    function logitrail_enable_logitrail_shipping_save($post_id) {
+    function enable_logitrail_shipping_save($post_id) {
         if( !empty($_POST['enable_logitrail_shipping']) ) {
             update_post_meta( $post_id, 'enable_logitrail_shipping', esc_attr( $_POST['enable_logitrail_shipping'] ) );
+        } else {
+            update_post_meta( $post_id, 'enable_logitrail_shipping', "0" );
         }
     }
 
