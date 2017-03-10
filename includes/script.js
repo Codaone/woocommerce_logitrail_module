@@ -27,6 +27,7 @@ jQuery(document).ready(function($) {
 			method: 'post',
 			success:function(data) {
 				$('#logitrail-export-notify div').html('Products exported.&nbsp;<button style="margin-left: 15px;" onClick="jQuery(\'#logitrail-export-notify\').remove();">Close</button>');
+				location.reload();
 			},
 			error: function(errorThrown){
 				$('#logitrail-export-notify div').css('width', '350px');

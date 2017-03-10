@@ -84,6 +84,9 @@ class Logitrail_WooCommerce {
         add_action( 'woocommerce_product_options_shipping', array($this, 'add_enable_logitrail_shipping'));
         add_action( 'woocommerce_process_product_meta', array($this, 'enable_logitrail_shipping_save'));
 
+        add_action( 'woocommerce_product_after_variable_attributes', array($this, 'logitrail_variation_settings_fields'), 10, 3 );
+        add_action( 'woocommerce_save_product_variation', array($this, 'logitrail_save_variation_settings_fields'), 10, 2 );
+
         add_action( 'admin_notices', array($this, 'logitrail_notifications'));
 
         add_action('woocommerce_after_checkout_validation', array(&$this, 'validate_shipping_method'));
@@ -371,6 +374,10 @@ class Logitrail_WooCommerce {
             if ( ! $product ) {
                 return;
             }
+            // Add variable product children only when adding the parent
+            if (property_exists($product, 'variation_id')) {
+                return;
+            }
 
             $apic        = new Logitrail\Lib\ApiClient();
             $test_server = ( $settings['test_server'] === 'yes' ? true : false );
@@ -379,30 +386,65 @@ class Logitrail_WooCommerce {
             $apic->setMerchantId( $settings['merchant_id'] );
             $apic->setSecretKey( $settings['secret_key'] );
 
-            if ( ! $product->get_sku() ) {
-                $notifications   = get_transient( 'logitrail_' . wp_get_current_user()->ID . '_notifications' );
-                $notifications[] =
-                    array(
-                        'class'   => 'notice notice-error',
-                        'message' => 'SKU puuttuu tuotteesta "' . $product->get_title() . '". Tuotetta ei voitu viedä Logitrailin järjestelmään.'
-                    );
-
-                set_transient( 'logitrail_' . wp_get_current_user()->ID . '_notifications', $notifications );
+            if ( ! $product->get_sku() && !$product->get_type() == 'variable' ) {
+                $this->logitrail_set_error('SKU puuttuu tuotteesta "' . $product->get_title() . '". Tuotetta ei voitu viedä Logitrailin järjestelmään.');
             } else {
-                // weight for Logitrail goes in grams, dimensions in millimeter
-                if (!$product->is_downloadable() && $this->logitrail_shipping_enabled($product->get_id())) {
-                    $apic->addProduct(
-                        $product->get_sku(),
-                        $product->get_title(),
-                        1,
-                        $product->get_weight() * 1000,
-                        $product->get_price_including_tax(),
-                        0,
-                        get_post_meta( $post_id, 'barcode', true ),
-                        $product->get_width() * 10,
-                        $product->get_height() * 10,
-                        $product->get_length() * 10
-                    );
+                if ($product->get_type() == 'variable') {
+                    // Add variation products here
+                    $parent = new WC_Product_Variable($product);
+                    $children = $parent->get_children();
+                    $sku_array = array();
+                    foreach ($children as $child_id) {
+                        /** @var WC_Product_Variable $child */
+                        $child = wc_get_product($child_id);
+                        $attributes = implode(' - ', $child->get_variation_attributes());
+                        $child_title = $child->get_title() . ' - ' . $attributes;
+
+                        if ( ! $child->get_sku() ) {
+                            $this->logitrail_set_error('SKU puuttuu tuotteesta "' . $child_title . '". Tuotetta ei voitu viedä Logitrailin järjestelmään.');
+                            continue;
+                        }
+                        if (in_array($child->get_sku(), $sku_array)) {
+                            $this->logitrail_set_error(
+                                'Tuotteen "' . $child_title . '" SKU "'. $child->get_sku() .'" on jo lisätty Logitrailiin, 
+                                Tuotetta ei voitu viedä Logitrailin järjestelmään'
+                            );
+                            continue;
+                        } else {
+                            $sku_array[] = $child->get_sku();
+                        }
+
+                        if (!$child->is_downloadable() && $this->logitrail_shipping_enabled($child->get_id())) {
+                            $apic->addProduct(
+                                $child->get_sku(),
+                                $child_title,
+                                1,
+                                $child->get_weight() * 1000,
+                                $child->get_price_including_tax(),
+                                0,
+                                get_post_meta( $child->get_id(), 'barcode', true ),
+                                $child->get_width() * 10,
+                                $child->get_height() * 10,
+                                $child->get_length() * 10
+                            );
+                        }
+                    }
+                } else {
+                    // weight for Logitrail goes in grams, dimensions in millimeter
+                    if (!$product->is_downloadable() && $this->logitrail_shipping_enabled($product->get_id())) {
+                        $apic->addProduct(
+                            $product->get_sku(),
+                            $product->get_title(),
+                            1,
+                            $product->get_weight() * 1000,
+                            $product->get_price_including_tax(),
+                            0,
+                            get_post_meta( $post_id, 'barcode', true ),
+                            $product->get_width() * 10,
+                            $product->get_height() * 10,
+                            $product->get_length() * 10
+                        );
+                    }
                 }
 
                 $responses = $apic->createProducts();
@@ -414,14 +456,7 @@ class Logitrail_WooCommerce {
                         // separately, but just as a count
                         if ( count( $responses == 1 ) ) {
                             //wc_add_notice("Virhe siirrettäessä tuotetta Logitrailille", "notice");
-                            $notifications   = get_transient( 'logitrail_' . wp_get_current_user()->ID . '_notifications' );
-                            $notifications[] =
-                                array(
-                                    'class'   => 'notice notice-error',
-                                    'message' => 'Virhe siirrettäessä tuotetta Logitrailille.'
-                                );
-
-                            set_transient( 'logitrail_' . wp_get_current_user()->ID . '_notifications', $notifications );
+                            $this->logitrail_set_error('Virhe siirrettäessä tuotetta Logitrailille.');
                         } else {
                             $errors ++;
                         }
@@ -440,6 +475,22 @@ class Logitrail_WooCommerce {
     }
 
     /**
+     * Set error for the user
+     *
+     * @param string $message
+     */
+    function logitrail_set_error($message) {
+        $notifications = get_transient('logitrail_' . wp_get_current_user()->ID . '_notifications');
+        $notifications[] =
+            array(
+                'class' => 'notice notice-error',
+                'message' => $message
+            );
+
+        set_transient('logitrail_' . wp_get_current_user()->ID . '_notifications', $notifications);
+    }
+
+    /**
      * If not in cart, inform user shipping price can only be calculated in cart page.
      *
      * @param type $label
@@ -455,7 +506,7 @@ class Logitrail_WooCommerce {
     }
 
     /**
-     * Export all vurrent products to Logitrail.
+     * Export all current products to Logitrail.
      * Called via AJAX
      */
     public function export_products() {
@@ -471,35 +522,84 @@ class Logitrail_WooCommerce {
         $productsAdded = 0;
         $productsAddedTotal = 0;
         $loop = new WP_Query( array( 'post_type' => array('product'), 'posts_per_page' => -1 ) );
+        $errors = 0;
+        $sku_array = array();
         while($loop->have_posts()) {
             $loop->the_post();
 
             $post_id = get_the_ID();
             $product = wc_get_product($post_id);
 
-            if (!$product->is_downloadable() && $this->logitrail_shipping_enabled($product->get_id())) {
-                // weight for Logitrail goes in grams, dimensions in millimeter
-                $apic->addProduct(
-                    $product->get_sku(),
-                    $product->get_title(),
-                    1,
-                    $product->get_weight() * 1000,
-                    $product->get_price_including_tax(),
-                    0,
-                    null,
-                    $product->get_width() * 10,
-                    $product->get_height() * 10,
-                    $product->get_length() * 10
-                );
-                $productsAdded++;
-                $productsAddedTotal++;
+            if ($product->get_type() == 'variable') {
+                // Add variation products here
+                $parent = new WC_Product_Variable($product);
+                $children = $parent->get_children();
+                foreach ($children as $child_id) {
+                    /** @var WC_Product_Variable $child */
+                    $child = wc_get_product($child_id);
+                    $attributes = implode(' - ', $child->get_variation_attributes());
+                    $child_title = $child->get_title() . ' - ' . $attributes;
+
+                    if ( ! $child->get_sku() ) {
+                        $this->logitrail_set_error('SKU puuttuu tuotteesta "' . $child_title . '". Tuotetta ei voitu viedä Logitrail-järjestelmään.');
+                        $errors++;
+                        continue;
+                    }
+                    if (in_array($child->get_sku(), $sku_array)) {
+                        $this->logitrail_set_error('Tuotteen "' . $child_title . '" SKU "'. $child->get_sku() .'" on jo lisätty Logitrailiin. Tuotetta ei voitu viedä Logitrail-järjestelmään.');
+                        $errors++;
+                        continue;
+                    } else {
+                        $sku_array[] = $child->get_sku();
+                    }
+
+                    if (!$child->is_downloadable() && $this->logitrail_shipping_enabled($child->get_id())) {
+                        $apic->addProduct(
+                            $child->get_sku(),
+                            $child_title,
+                            1,
+                            $child->get_weight() * 1000,
+                            $child->get_price_including_tax(),
+                            0,
+                            get_post_meta( $child->get_id(), 'barcode', true ),
+                            $child->get_width() * 10,
+                            $child->get_height() * 10,
+                            $child->get_length() * 10
+                        );
+                        $productsAdded++;
+                        $productsAddedTotal++;
+                    }
+                }
+            } else {
+                if (!$product->is_downloadable() && $this->logitrail_shipping_enabled($product->get_id())) {
+                    if (in_array($product->get_sku(), $sku_array)) {
+                        $this->logitrail_set_error('Tuotteen "' . $product->title . '" SKU "'. $product->get_sku() .'" on jo lisätty. Tuotetta ei voitu viedä Logitrail-järjestelmään.');
+                        $errors++;
+                        continue;
+                    }
+                    // weight for Logitrail goes in grams, dimensions in millimeter
+                    $apic->addProduct(
+                        $product->get_sku(),
+                        $product->get_title(),
+                        1,
+                        $product->get_weight() * 1000,
+                        $product->get_price_including_tax(),
+                        0,
+                        null,
+                        $product->get_width() * 10,
+                        $product->get_height() * 10,
+                        $product->get_length() * 10
+                    );
+                    $productsAdded++;
+                    $productsAddedTotal++;
+                }
             }
 
             if($this->debug_mode) {
                 $this->logitrail_debug_log('Added product with info: ' . $product->get_sku() . ', ' . $product->get_title() . ', ' . 1 . ', ' . $product->get_weight() * 1000 . ', ' . $product->get_price_including_tax() . ', ' . 0 . ', ' . get_post_meta($post_id, 'barcode', true) . ', ' . $product->get_width() * 10 . ', ' . $product->get_height() * 10 . ', ' . $product->get_length() * 10);
             }
 
-            // create products in batches of 5, so in big shops we don't get
+            // create products in batches of (about) 5, so in big shops we don't get
             // huge amount of products taking memory in ApiClient
             // Remaining products will be added after the loop
             if($productsAdded >= 5) {
@@ -522,16 +622,29 @@ class Logitrail_WooCommerce {
         }
 
         wp_reset_query();
+
+        if (!$errors) {
+            $notifications = get_transient('logitrail_' . wp_get_current_user()->ID . '_notifications');
+            $notifications[] =
+                array(
+                    'class' => 'updated notice notice-success is-dismissible',
+                    'message' => 'Tuotteet viety Logitrail-järjestelmään.'
+                );
+
+            set_transient('logitrail_' . wp_get_current_user()->ID . '_notifications', $notifications);
+        }
     }
 
     public static function logitrail_add_barcode() {
+        global $post;
         woocommerce_wp_text_input(
             array(
-                'id' => 'barcode',
+                'id' => 'barcode['.$post->ID.']',
                 'label' => __( 'Barcode', 'woocommerce' ),
                 'placeholder' => 'barcode here',
                 'desc_tip' => 'true',
-                'description' => __( 'Product barcode.', 'woocommerce' )
+                'description' => __( 'Product barcode.', 'woocommerce' ),
+                'value' => get_post_meta( $post->ID, 'barcode', true )
             )
         );
     }
@@ -551,10 +664,23 @@ class Logitrail_WooCommerce {
         );
     }
 
-    function logitrail_barcode_save($post_id){
+    function logitrail_variation_settings_fields( $loop, $variation_data, $variation ) {
+        $parent_barcode = get_post_meta( $variation->post_parent, 'barcode', true);
+        woocommerce_wp_text_input(
+            array(
+                'id'          => 'barcode[' . $variation->ID . ']',
+                'label'       => __( 'Barcode', 'woocommerce' ),
+                'placeholder' => $parent_barcode,
+                'desc_tip'    => 'true',
+                'description' => __( 'Enter the product barcode or leave blank to use the parent product barcode', 'woocommerce' ),
+                'value'       => get_post_meta( $variation->ID, 'barcode', true )
+            )
+        );
+    }
 
+    function logitrail_barcode_save($post_id){
         // Saving Barcode
-        $barcode = $_POST['barcode'];
+        $barcode = $_POST['barcode'][$post_id];
         if( !empty($barcode) ) {
             update_post_meta( $post_id, 'barcode', esc_attr( $barcode ) );
         }
@@ -568,6 +694,13 @@ class Logitrail_WooCommerce {
             update_post_meta( $post_id, 'enable_logitrail_shipping', esc_attr( $_POST['enable_logitrail_shipping'] ) );
         } else {
             update_post_meta( $post_id, 'enable_logitrail_shipping', "0" );
+        }
+    }
+
+    function logitrail_save_variation_settings_fields( $post_id ) {
+        $text_field = $_POST['barcode'][ $post_id ];
+        if( ! empty( $text_field ) ) {
+            update_post_meta( $post_id, 'barcode', esc_attr( $text_field ) );
         }
     }
 
