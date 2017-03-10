@@ -14,6 +14,7 @@ class ApiClient {
     private $city;
     private $email;
     private $phone;
+    private $companyName;
     private $products = array();
 
     private $responseAsRaw = false;
@@ -122,14 +123,15 @@ class ApiClient {
      * @param string $postalCode
      * @param string $city
      */
-    public function setCustomerInfo($firstname, $lastname, $phone, $email, $address, $postalCode, $city) {
+    public function setCustomerInfo($firstname, $lastname, $phone, $email, $address, $postalCode, $city, $companyName) {
         $this->firstName = $firstname;
         $this->lastName = $lastname;
         $this->address = $address;
         $this->postalCode = $postalCode;
         $this->city = $city;
-		$this->phone = $phone;
-		$this->email = $email;
+        $this->phone = $phone;
+        $this->email = $email;
+        $this->companyName = $companyName;
     }
 
     /**
@@ -138,7 +140,7 @@ class ApiClient {
      *
      * @return string
      */
-    public function getForm() {
+    public function getForm($lang='fi') {
         // TODO: Check that all mandatory values are set
         $post = array();
 
@@ -152,7 +154,7 @@ class ApiClient {
         $post['customer_city'] = $this->city;
         $post['customer_email'] = $this->email;
         $post['customer_phone'] = $this->phone;
-
+        $post['language'] = $lang;
 
         // add products to post data
         foreach($this->products as $id => $product) {
@@ -198,7 +200,8 @@ class ApiClient {
 			'phoneNumber' => $this->phone,
 			'address' => $this->address,
 			'city' => $this->city,
-			'postalCode' => $this->postalCode
+			'postalCode' => $this->postalCode,
+			'organizationName' => $this->companyName
 			)
 		);
 
@@ -359,5 +362,24 @@ class ApiClient {
 		$correctMac = base64_encode(hash('sha512', $macSource, true));
 
 		return $correctMac;
+    }
+
+    /**
+     * Processes json string and returns an associative array, returns empty array on json parse error
+     * @param string $json returned by logitrail webhook
+     * @return array
+     */
+    public function processWebhookData($json) {
+        $parsed = array();
+        $decoded = json_decode($json, true);
+        if ($decoded) {
+            $parsed['event_id']    = $decoded['event_id'];
+            $parsed['webhook_id']  = $decoded['webhook_id'];
+            $parsed['event_type']  = $decoded['event_type'];
+            $parsed['ts']          = strtotime($decoded['ts']);
+            $parsed['retry_count'] = (int)$decoded['retry_count'];
+            $parsed['payload']     = $decoded['payload'];
+        }
+        return $parsed;
     }
 }

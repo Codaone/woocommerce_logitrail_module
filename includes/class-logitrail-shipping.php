@@ -50,6 +50,9 @@ class Logitrail_Shipping extends WC_Shipping_Method {
 		$this->test_server		= !empty( $this->settings['test_server'] ) ? $this->settings['test_server'] : '';
 		$this->debug_mode		= !empty( $this->settings['debug_mode'] ) ? $this->settings['debug_mode'] : '';
 
+		$this->webhook_username = !empty( $this->settings['webhook_username'] ) ? $this->settings['webhook_username'] : '';
+		$this->webhook_password = !empty( $this->settings['webhook_password'] ) ? $this->settings['webhook_password'] : '';
+
 		add_action( 'woocommerce_update_options_shipping_' . $this->id, array( $this, 'process_admin_options' ) );
 
 		wp_register_script( 'logitrail-script', plugins_url('/script.js', __FILE__) );
@@ -107,14 +110,15 @@ class Logitrail_Shipping extends WC_Shipping_Method {
 	global $woocommerce;
 
     	$this->form_fields  = array(
-	    'enabled'	=> array(
-			'title'		=> __( 'Enabled', 'logitrail-woocommerce-shipping' ),
-			'type'		=> 'checkbox',
-			'label'		=> __( 'Enable', 'logitrail-woocommerce-shipping' ),
-			'default'	=> 'no',
-			'description'	=> __( 'Enable Logitrail on Cart/Checkout page.', 'logitrail-woocommerce-shipping' ),
-			'desc_tip'	=> true
-	    ),
+		// @todo Enabled setting is hidden until it works properly
+		//'enabled'	=> array(
+			//'title'		=> __( 'Enabled', 'logitrail-woocommerce-shipping' ),
+			//'type'		=> 'checkbox',
+			//'label'		=> __( 'Enable', 'logitrail-woocommerce-shipping' ),
+			//'default'	=> 'no',
+			//'description'	=> __( 'Enable Logitrail on Cart/Checkout page.', 'logitrail-woocommerce-shipping' ),
+			//'desc_tip'	=> true
+		//),
 	    'title'	=> array(
 			'title'		=> __( 'Method Title', 'logitrail-woocommerce' ),
 			'type'		=> 'text',
@@ -163,8 +167,22 @@ class Logitrail_Shipping extends WC_Shipping_Method {
 			'type'		=> 'button',
 			'default'	=> 'Export now',
 			'class'		=> 'button-secondary export-now'
-	    ),
-        );
+		),
+		'webhook_username' => array(
+			'title'		=> __( 'Webhook username', 'logitrail-woocommerce' ),
+			'type'		=> 'text',
+			'description'	=> __( 'Used to communicate with Logitrail webhooks', 'logitrail-woocommerce' ),
+			'default'	=> '',
+			'desc_tip'	=> true
+		),
+		'webhook_password' => array(
+			'title'		=> __( 'Webhook password', 'logitrail-woocommerce' ),
+			'type'		=> 'text',
+			'description'	=> __( 'Used to communicate with Logitrail webhooks', 'logitrail-woocommerce' ),
+			'default'	=> '',
+			'desc_tip'	=> true
+		),
+		);
 
 		wp_enqueue_script( 'logitrail-script' );
     }
