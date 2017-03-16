@@ -55,9 +55,7 @@ class Logitrail_WooCommerce {
         add_filter( 'woocommerce_shipping_methods', array( $this, 'logitrail_add_method') );
 
         add_action( 'woocommerce_checkout_shipping', array($this, 'logitrail_get_template') );
-        add_action( 'woocommerce_payment_complete', array($this, 'logitrail_payment_complete'), 10, 1 );
-
-        add_action( 'woocommerce_order_status_completed', array($this, 'logitrail_payment_complete'), 10, 1 );
+        add_action( 'woocommerce_thankyou', array($this, 'logitrail_payment_complete'), 10, 1 );
 
         add_action( 'wc_ajax_logitrail', array($this, 'logitrail_get_form' ) );
         add_action( 'wc_ajax_logitrail_setprice', array($this, 'logitrail_set_price'));
@@ -115,7 +113,7 @@ class Logitrail_WooCommerce {
         }
     }
 
-        /**
+    /**
      * Add new endpoints.
      */
     public static function add_endpoint() {
@@ -272,10 +270,10 @@ class Logitrail_WooCommerce {
             $form = $apic->getForm();
         }
         if ($shipping_count > 0) {
-            set_transient('logitrail_shipping', true);
+            set_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_shipping', true);
             echo $form;
         } else {
-            set_transient('logitrail_shipping', false);
+            set_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_shipping', false);
         }
 
 
@@ -886,6 +884,11 @@ class Logitrail_WooCommerce {
 
                             wc_update_product_stock($product['merchants_id'], $product['inventory']['available']);
                         }
+                        break;
+                    case "order.shipped":
+                        $order_id = $received_data['merchants_id'];
+                        $order = new WC_Order($order_id);
+                        $order->update_status('completed');
                         break;
                 }
             }
