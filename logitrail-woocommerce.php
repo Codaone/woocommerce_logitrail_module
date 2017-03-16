@@ -3,7 +3,7 @@
 /*
     Plugin Name: Logitrail
     Description: Integrate checkout shipping with Logitrail
-    Version: 0.1.0
+    Version: 1.0.1
     Author: <a href="mailto:petri@codaone.fi">Petri Kanerva</a> | <a href="http://www.codaone.fi/">Codaone Oy</a>
 */
 
@@ -306,9 +306,12 @@ class Logitrail_WooCommerce {
     public function logitrail_payment_complete($this_id) {
         global $woocommerce, $post;
 
-        $settings = get_option('woocommerce_logitrail_shipping_settings');
-
         $order = new WC_Order($this_id);
+        if ($order->get_status() == 'failed') {
+            return;
+        }
+
+        $settings = get_option('woocommerce_logitrail_shipping_settings');
 
         $apic = new Logitrail\Lib\ApiClient();
         $test_server = ($settings['test_server'] === 'yes' ? true : false);
