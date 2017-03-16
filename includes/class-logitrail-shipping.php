@@ -110,15 +110,14 @@ class Logitrail_Shipping extends WC_Shipping_Method {
 	global $woocommerce;
 
     	$this->form_fields  = array(
-		// @todo Enabled setting is hidden until it works properly
-		//'enabled'	=> array(
-			//'title'		=> __( 'Enabled', 'logitrail-woocommerce-shipping' ),
-			//'type'		=> 'checkbox',
-			//'label'		=> __( 'Enable', 'logitrail-woocommerce-shipping' ),
-			//'default'	=> 'no',
-			//'description'	=> __( 'Enable Logitrail on Cart/Checkout page.', 'logitrail-woocommerce-shipping' ),
-			//'desc_tip'	=> true
-		//),
+		'enabled'	=> array(
+			'title'		=> __( 'Enabled', 'logitrail-woocommerce-shipping' ),
+			'type'		=> 'checkbox',
+			'label'		=> __( 'Enable', 'logitrail-woocommerce-shipping' ),
+			'default'	=> 'no',
+			'description'	=> __( 'Enable Logitrail on Cart/Checkout page.', 'logitrail-woocommerce-shipping' ),
+			'desc_tip'	=> true
+		),
 	    'title'	=> array(
 			'title'		=> __( 'Method Title', 'logitrail-woocommerce' ),
 			'type'		=> 'text',
