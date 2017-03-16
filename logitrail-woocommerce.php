@@ -270,10 +270,10 @@ class Logitrail_WooCommerce {
             $form = $apic->getForm();
         }
         if ($shipping_count > 0) {
-            set_transient('logitrail_shipping', true);
+            set_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_shipping', true);
             echo $form;
         } else {
-            set_transient('logitrail_shipping', false);
+            set_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_shipping', false);
         }
 
 
