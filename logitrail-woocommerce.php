@@ -3,7 +3,7 @@
 /*
     Plugin Name: Logitrail
     Description: Integrate checkout shipping with Logitrail
-    Version: 1.0.2
+    Version: 1.0.3
     Author: <a href="mailto:petri@codaone.fi">Petri Kanerva</a> | <a href="http://www.codaone.fi/">Codaone Oy</a>
 */
 
@@ -13,6 +13,9 @@ if(!defined('ABSPATH')) {
 
 // Require the Logitrail ApiClient
 require_once( 'includes/ApiClient.php' );
+
+// Require getallheaders polyfill
+require_once('includes/getallheaders.php' );
 
 // Required functions
 if(!function_exists('logitrail_is_woocommerce_active')) {
@@ -838,7 +841,7 @@ class Logitrail_WooCommerce {
     function update_product() {
         global $wpdb;
         $apic = new Logitrail\Lib\ApiClient();
-        $hash = explode(' ', apache_request_headers()['Authorization'])[1];
+        $hash = explode(' ', getallheaders()['Authorization'])[1];
         $auth = explode(':', base64_decode($hash));
         $settings = get_option('woocommerce_logitrail_shipping_settings');
 
