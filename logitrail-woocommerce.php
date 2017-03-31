@@ -3,7 +3,7 @@
 /*
     Plugin Name: Logitrail
     Description: Integrate checkout shipping with Logitrail
-    Version: 1.0.1
+    Version: 1.0.2
     Author: <a href="mailto:petri@codaone.fi">Petri Kanerva</a> | <a href="http://www.codaone.fi/">Codaone Oy</a>
 */
 
@@ -216,7 +216,7 @@ class Logitrail_WooCommerce {
 
         // FIXME: If there is any way of getting the shipment customer info here
         // use it (firstname, lastname)
-        $apic->setCustomerInfo('', '', '', '', $address, $postcode, $city, '');
+        $apic->setCustomerInfo('', '', '', '', $address, $postcode, $city, '', '');
         $apic->setOrderId($woocommerce->session->get_session_cookie()[3]);
 
         if($this->debug_mode) {
@@ -323,7 +323,7 @@ class Logitrail_WooCommerce {
         $order_id = get_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_order_id');
 
         $apic->setOrderId($this_id);
-        $apic->setCustomerInfo($order->shipping_first_name, $order->shipping_last_name, $order->billing_phone, $order->billing_email, $order->shipping_address_1 . ' ' . $order->shipping_address_2, $order->shipping_postcode, $order->shipping_city, $order->shipping_company);
+        $apic->setCustomerInfo($order->shipping_first_name, $order->shipping_last_name, $order->billing_phone, $order->billing_email, $order->shipping_address_1 . ' ' . $order->shipping_address_2, $order->shipping_postcode, $order->shipping_city, $order->shipping_company, $order->shipping_country);
         $apic->updateOrder($order_id);
 
         // TODO: handle failed confirmation (if possible?)
