@@ -198,12 +198,13 @@ class Logitrail_Shipping extends WC_Shipping_Method {
 
 		$shipping_methods = array('pickup' => 'Nouto', 'letter' => 'Kirje', 'home' => 'Ovelle');
 		$title = $this->settings['title'];
+		$unique_id = $woocommerce->session->get_customer_id();
 		if($title == '') {
-			$type = get_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_type');
+			$type = get_transient('logitrail_' . $unique_id . '_type');
 			$title = ($type && array_key_exists($type, $shipping_methods) ? $shipping_methods[$type] : 'Toimitustapaa ei ole valittu');
 		}
 
-        $postage = get_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_price');
+        $postage = get_transient('logitrail_' . $unique_id . '_price');
         $this->add_rate( array(
                 'id' 	=> $this->id . '_postage',
                 'label' => $title,

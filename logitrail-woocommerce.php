@@ -3,7 +3,7 @@
 /*
     Plugin Name: Logitrail
     Description: Integrate checkout shipping with Logitrail
-    Version: 1.0.1
+    Version: 1.0.5
     Author: <a href="mailto:petri@codaone.fi">Petri Kanerva</a> | <a href="http://www.codaone.fi/">Codaone Oy</a>
 */
 
@@ -13,6 +13,9 @@ if(!defined('ABSPATH')) {
 
 // Require the Logitrail ApiClient
 require_once( 'includes/ApiClient.php' );
+
+// Require getallheaders polyfill
+require_once('includes/getallheaders.php' );
 
 // Required functions
 if(!function_exists('logitrail_is_woocommerce_active')) {
@@ -106,8 +109,9 @@ class Logitrail_WooCommerce {
 
     public function validate_shipping_method($data = '') {
         global $woocommerce;
-        $shipping_method = get_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_type');
-        $shippable = get_transient('logitrail_'. $woocommerce->session->get_session_cookie()[3] . '_shipping');
+        $unique_id = $woocommerce->session->get_customer_id();
+        $shipping_method = get_transient('logitrail_' . $unique_id . '_type');
+        $shippable = get_transient('logitrail_'. $unique_id . '_shipping');
         if (!$shipping_method && $shippable) {
             wc_add_notice( apply_filters( 'woocommerce_checkout_required_field_notice', 'Valitse toimitustapa.'), 'error' );
         }
@@ -216,8 +220,9 @@ class Logitrail_WooCommerce {
 
         // FIXME: If there is any way of getting the shipment customer info here
         // use it (firstname, lastname)
-        $apic->setCustomerInfo('', '', '', '', $address, $postcode, $city, '');
-        $apic->setOrderId($woocommerce->session->get_session_cookie()[3]);
+        $apic->setCustomerInfo('', '', '', '', $address, $postcode, $city, '', '');
+        $unique_id = $woocommerce->session->get_customer_id();
+        $apic->setOrderId($unique_id);
 
         if($this->debug_mode) {
             $this->logitrail_debug_log('Form, creating with data: ' . '""' . ', ' . '""' . ', ' . '""' . ', ' . '""' . ', ' .  $address . ', ' . $postcode . ', ' . $city);
@@ -269,11 +274,12 @@ class Logitrail_WooCommerce {
         } else {
             $form = $apic->getForm();
         }
+        $unique_id = $woocommerce->session->get_customer_id();
         if ($shipping_count > 0) {
-            set_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_shipping', true);
+            set_transient('logitrail_' . $unique_id . '_shipping', true);
             echo $form;
         } else {
-            set_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_shipping', false);
+            set_transient('logitrail_' . $unique_id . '_shipping', false);
         }
 
 
@@ -290,14 +296,15 @@ class Logitrail_WooCommerce {
     public function logitrail_set_price() {
         global $woocommerce;
 
-        set_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_price', $_POST['postage']);
-        set_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_order_id', $_POST['order_id']);
-        set_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_type', $_POST['delivery_type']);
+        $unique_id = $woocommerce->session->get_customer_id();
+        set_transient('logitrail_' . $unique_id . '_price', $_POST['postage']);
+        set_transient('logitrail_' . $unique_id . '_order_id', $_POST['order_id']);
+        set_transient('logitrail_' . $unique_id . '_type', $_POST['delivery_type']);
 
         if($this->debug_mode) {
             $this->logitrail_debug_log('Setting postage to ' . $_POST['postage']);
 
-            $postage = get_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_price');
+            $postage = get_transient('logitrail_' . $unique_id . '_price');
 
             $this->logitrail_debug_log('Confirming postage value as ' . $postage);
         }
@@ -320,24 +327,36 @@ class Logitrail_WooCommerce {
         $apic->setMerchantId($settings['merchant_id']);
         $apic->setSecretKey($settings['secret_key']);
 
-        $order_id = get_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_order_id');
+        $unique_id = $woocommerce->session->get_customer_id();
 
-        $apic->setOrderId($this_id);
-        $apic->setCustomerInfo($order->shipping_first_name, $order->shipping_last_name, $order->billing_phone, $order->billing_email, $order->shipping_address_1 . ' ' . $order->shipping_address_2, $order->shipping_postcode, $order->shipping_city, $order->shipping_company);
-        $apic->updateOrder($order_id);
+        $order_id = get_transient('logitrail_' . $unique_id . '_order_id');
+        $shippable = get_transient('logitrail_' . $unique_id . '_shipping');
+        if (!$shippable) {
+            // Product is not shippable, do nothing
+        } else if (!$order_id) {
+            if ($this->debug_mode) {
+                $this->logitrail_debug_log('Order confirmation failed with details: ' . $order->shipping_first_name . ', ' . $order->shipping_last_name . ', ' . $order->billing_phone . ', ' . $order->billing_email . ', ' . $order->shipping_address_1 . ' ' . $order->shipping_address_2 . ', ' . $order->shipping_postcode . ', ' . $order->shipping_city);
+            }
+            echo "<br><b style='color: red'>Tilauksen vahvistaminen epäonnistui, ota yhteyttä myyjään</b><br>";
+        } else {
+            // Order confirmation
+            $apic->setOrderId($this_id);
+            $apic->setCustomerInfo($order->shipping_first_name, $order->shipping_last_name, $order->billing_phone, $order->billing_email, $order->shipping_address_1 . ' ' . $order->shipping_address_2, $order->shipping_postcode, $order->shipping_city, $order->shipping_company, $order->shipping_country);
+            $apic->updateOrder($order_id);
 
-        // TODO: handle failed confirmation (if possible?)
-        $result = $apic->confirmOrder($order_id);
-        // TODO: translate
-        echo "<br />Voit seurata toimitustasi osoitteessa: <a href='" . $result['tracking_url'] . "' target='_BLANK'>" . $result['tracking_url'] . "</a><br />";
+            // TODO: handle failed confirmation (if possible?)
+            $result = $apic->confirmOrder($order_id);
+            // TODO: translate
+            echo "<br>Voit seurata toimitustasi osoitteessa: <a href='" . $result['tracking_url'] . "' target='_BLANK'>" . $result['tracking_url'] . "</a><br>";
 
-        if($this->debug_mode) {
-            $this->logitrail_debug_log('Confirmed order ' . $order_id . 'with details: ' . $order->shipping_first_name . ', ' . $order->shipping_last_name . ', ' . $order->billing_phone . ', ' . $order->billing_email . ', ' . $order->shipping_address_1 . ' ' . $order->shipping_address_2 . ', ' . $order->shipping_postcode . ', ' . $order->shipping_city);
+            if($this->debug_mode) {
+                $this->logitrail_debug_log('Confirmed order ' . $order_id . 'with details: ' . $order->shipping_first_name . ', ' . $order->shipping_last_name . ', ' . $order->billing_phone . ', ' . $order->billing_email . ', ' . $order->shipping_address_1 . ' ' . $order->shipping_address_2 . ', ' . $order->shipping_postcode . ', ' . $order->shipping_city);
+            }
         }
-
-        delete_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_price');
-        delete_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_order_id');
-        delete_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_type');
+        delete_transient('logitrail_' . $unique_id . '_price');
+        delete_transient('logitrail_' . $unique_id . '_order_id');
+        delete_transient('logitrail_' . $unique_id . '_type');
+        delete_transient('logitrail_' . $unique_id . '_shipping');
         unset(WC()->session->shipping_for_package);
     }
 
@@ -356,7 +375,8 @@ class Logitrail_WooCommerce {
         foreach ( $packages as $key => $package ) {
             // if the shipping is set, remove it
             if ( isset( $package['rates']['logitrail_shipping_postage'] ) ) {
-                $package['rates']['logitrail_shipping_postage']->cost = get_transient('logitrail_' . $woocommerce->session->get_session_cookie()[3] . '_price');
+                $unique_id = $woocommerce->session->get_customer_id();
+                $package['rates']['logitrail_shipping_postage']->cost = get_transient('logitrail_' . $unique_id . '_price');
             }
         }
 
@@ -838,7 +858,7 @@ class Logitrail_WooCommerce {
     function update_product() {
         global $wpdb;
         $apic = new Logitrail\Lib\ApiClient();
-        $hash = explode(' ', apache_request_headers()['Authorization'])[1];
+        $hash = explode(' ', getallheaders()['Authorization'])[1];
         $auth = explode(':', base64_decode($hash));
         $settings = get_option('woocommerce_logitrail_shipping_settings');
 
