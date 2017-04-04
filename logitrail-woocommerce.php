@@ -220,7 +220,7 @@ class Logitrail_WooCommerce {
 
         // FIXME: If there is any way of getting the shipment customer info here
         // use it (firstname, lastname)
-        $apic->setCustomerInfo('', '', '', '', $address, $postcode, $city, '', '');
+        $apic->setCustomerInfo('', '', '', '', $address, $postcode, $city, '', $country);
         $unique_id = $woocommerce->session->get_customer_id();
         $apic->setOrderId($unique_id);
 
