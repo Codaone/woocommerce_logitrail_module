@@ -3,7 +3,7 @@
 /*
     Plugin Name: Logitrail
     Description: Integrate checkout shipping with Logitrail
-    Version: 1.0.5
+    Version: 1.0.6
     Author: <a href="mailto:petri@codaone.fi">Petri Kanerva</a> | <a href="http://www.codaone.fi/">Codaone Oy</a>
 */
 
@@ -250,14 +250,18 @@ class Logitrail_WooCommerce {
                 // TODO: Should merchant be informed of products without marked tax?
                 $tax = 0;
             }
-
+            if (function_exists('wc_get_price_including_tax')) {
+                $price_including_tax = wc_get_price_including_tax($product);
+            } else {
+                $price_including_tax = $product->get_price_including_tax(); // Woocommerce < 2.7
+            }
             if (!$product->is_downloadable() && $this->logitrail_shipping_enabled($product->get_id())) {
                 $apic->addProduct(
                     $product->get_sku(),
                     $product->get_title(),
                     $cartItem['quantity'],
                     $product->get_weight() * 1000,
-                    $product->get_price_including_tax(),
+                    $price_including_tax,
                     $tax
                 );
                 $shipping_count++;
@@ -331,17 +335,60 @@ class Logitrail_WooCommerce {
 
         $order_id = get_transient('logitrail_' . $unique_id . '_order_id');
         $shippable = get_transient('logitrail_' . $unique_id . '_shipping');
+        if (method_exists($order, 'get_shipping_first_name')) {
+            $shipping_first_name = $order->get_shipping_first_name();
+            $shipping_last_name = $order->get_shipping_last_name();
+            $billing_phone = $order->get_billing_phone();
+            $billing_email = $order->get_billing_email();
+            $shipping_address_1 = $order->get_shipping_address_1();
+            $shipping_address_2 = $order->get_shipping_address_2();
+            $shipping_postcode = $order->get_shipping_postcode();
+            $shipping_city = $order->get_shipping_city();
+            $shipping_company = $order->get_shipping_company();
+            $shipping_country = $order->get_shipping_country();
+        } else {
+            // Woocommerce < 2.7
+            $shipping_first_name = $order->shipping_first_name;
+            $shipping_last_name = $order->shipping_last_name;
+            $billing_phone = $order->billing_phone;
+            $billing_email = $order->billing_email;
+            $shipping_address_1 = $order->shipping_address_1;
+            $shipping_address_2 = $order->shipping_address_2;
+            $shipping_postcode = $order->shipping_postcode;
+            $shipping_city = $order->shipping_city;
+            $shipping_company = $order->shipping_company;
+            $shipping_country = $order->shipping_country;
+        }
         if (!$shippable) {
             // Product is not shippable, do nothing
         } else if (!$order_id) {
             if ($this->debug_mode) {
-                $this->logitrail_debug_log('Order confirmation failed with details: ' . $order->shipping_first_name . ', ' . $order->shipping_last_name . ', ' . $order->billing_phone . ', ' . $order->billing_email . ', ' . $order->shipping_address_1 . ' ' . $order->shipping_address_2 . ', ' . $order->shipping_postcode . ', ' . $order->shipping_city);
+                $this->logitrail_debug_log('Order confirmation failed with details: ' .
+                    $shipping_first_name . ', ' .
+                    $shipping_last_name . ', ' .
+                    $billing_phone . ', ' .
+                    $billing_email . ', ' .
+                    $shipping_address_1 . ' ' .
+                    $shipping_address_2 . ', ' .
+                    $shipping_postcode . ', ' .
+                    $shipping_city
+                );
             }
             echo "<br><b style='color: red'>Tilauksen vahvistaminen epäonnistui, ota yhteyttä myyjään</b><br>";
         } else {
             // Order confirmation
             $apic->setOrderId($this_id);
-            $apic->setCustomerInfo($order->shipping_first_name, $order->shipping_last_name, $order->billing_phone, $order->billing_email, $order->shipping_address_1 . ' ' . $order->shipping_address_2, $order->shipping_postcode, $order->shipping_city, $order->shipping_company, $order->shipping_country);
+            $apic->setCustomerInfo(
+                $shipping_first_name,
+                $shipping_last_name,
+                $billing_phone,
+                $billing_email,
+                $shipping_address_1 . ' ' . $shipping_address_2,
+                $shipping_postcode,
+                $shipping_city,
+                $shipping_company,
+                $shipping_country
+            );
             $apic->updateOrder($order_id);
 
             // TODO: handle failed confirmation (if possible?)
@@ -350,7 +397,17 @@ class Logitrail_WooCommerce {
             echo "<br>Voit seurata toimitustasi osoitteessa: <a href='" . $result['tracking_url'] . "' target='_BLANK'>" . $result['tracking_url'] . "</a><br>";
 
             if($this->debug_mode) {
-                $this->logitrail_debug_log('Confirmed order ' . $order_id . 'with details: ' . $order->shipping_first_name . ', ' . $order->shipping_last_name . ', ' . $order->billing_phone . ', ' . $order->billing_email . ', ' . $order->shipping_address_1 . ' ' . $order->shipping_address_2 . ', ' . $order->shipping_postcode . ', ' . $order->shipping_city);
+                $this->logitrail_debug_log(
+                    'Confirmed order ' . $order_id . 'with details: ' .
+                    $shipping_first_name . ', ' .
+                    $shipping_last_name . ', ' .
+                    $billing_phone . ', ' .
+                    $billing_email . ', ' .
+                    $shipping_address_1 . ' ' .
+                    $shipping_address_2 . ', ' .
+                    $shipping_postcode . ', ' .
+                    $shipping_city
+                );
             }
         }
         delete_transient('logitrail_' . $unique_id . '_price');
@@ -435,13 +492,18 @@ class Logitrail_WooCommerce {
                             $sku_array[] = $child->get_sku();
                         }
 
+                        if (function_exists('wc_get_price_including_tax')) {
+                            $price_including_tax = wc_get_price_including_tax($child);
+                        } else {
+                            $price_including_tax = $child->get_price_including_tax(); // Woocommerce < 2.7
+                        }
                         if (!$child->is_downloadable() && $this->logitrail_shipping_enabled($child->get_id())) {
                             $apic->addProduct(
                                 $child->get_sku(),
                                 $child_title,
                                 1,
                                 $child->get_weight() * 1000,
-                                $child->get_price_including_tax(),
+                                $price_including_tax,
                                 0,
                                 get_post_meta( $child->get_id(), 'barcode', true ),
                                 $child->get_width() * 10,
@@ -451,6 +513,11 @@ class Logitrail_WooCommerce {
                         }
                     }
                 } else {
+                    if (function_exists('wc_get_price_including_tax')) {
+                        $price_including_tax = wc_get_price_including_tax($product);
+                    } else {
+                        $price_including_tax = $product->get_price_including_tax(); // Woocommerce < 2.7
+                    }
                     // weight for Logitrail goes in grams, dimensions in millimeter
                     if (!$product->is_downloadable() && $this->logitrail_shipping_enabled($product->get_id())) {
                         $apic->addProduct(
@@ -458,7 +525,7 @@ class Logitrail_WooCommerce {
                             $product->get_title(),
                             1,
                             $product->get_weight() * 1000,
-                            $product->get_price_including_tax(),
+                            $product->$price_including_tax(),
                             0,
                             get_post_meta( $post_id, 'barcode', true ),
                             $product->get_width() * 10,
@@ -489,7 +556,12 @@ class Logitrail_WooCommerce {
                 }
 
                 if ( $this->debug_mode ) {
-                    $this->logitrail_debug_log( 'Added product with info: ' . $product->get_sku() . ', ' . $product->get_title() . ', ' . 1 . ', ' . $product->get_weight() * 1000 . ', ' . $product->get_price_including_tax() . ', ' . 0 . ', ' . get_post_meta( $post_id, 'barcode', true ) . ', ' . $product->get_width() * 10 . ', ' . $product->get_height() * 10 . ', ' . $product->get_length() * 10 );
+                    if (function_exists('wc_get_price_including_tax')) {
+                        $price_including_tax = wc_get_price_including_tax($product);
+                    } else {
+                        $price_including_tax = $product->get_price_including_tax(); // Woocommerce < 2.7
+                    }
+                    $this->logitrail_debug_log( 'Added product with info: ' . $product->get_sku() . ', ' . $product->get_title() . ', ' . 1 . ', ' . $product->get_weight() * 1000 . ', ' . $price_including_tax . ', ' . 0 . ', ' . get_post_meta( $post_id, 'barcode', true ) . ', ' . $product->get_width() * 10 . ', ' . $product->get_height() * 10 . ', ' . $product->get_length() * 10 );
                 }
             }
         }
@@ -574,13 +646,18 @@ class Logitrail_WooCommerce {
                         $sku_array[] = $child->get_sku();
                     }
 
+                    if (function_exists('wc_get_price_including_tax')) {
+                        $price_including_tax = wc_get_price_including_tax($child);
+                    } else {
+                        $price_including_tax = $child->get_price_including_tax(); // Woocommerce < 2.7
+                    }
                     if (!$child->is_downloadable() && $this->logitrail_shipping_enabled($child->get_id())) {
                         $apic->addProduct(
                             $child->get_sku(),
                             $child_title,
                             1,
                             $child->get_weight() * 1000,
-                            $child->get_price_including_tax(),
+                            $price_including_tax,
                             0,
                             get_post_meta( $child->get_id(), 'barcode', true ),
                             $child->get_width() * 10,
@@ -598,13 +675,18 @@ class Logitrail_WooCommerce {
                         $errors++;
                         continue;
                     }
+                    if (function_exists('wc_get_price_including_tax')) {
+                        $price_including_tax = wc_get_price_including_tax($product);
+                    } else {
+                        $price_including_tax = $product->get_price_including_tax(); // Woocommerce < 2.7
+                    }
                     // weight for Logitrail goes in grams, dimensions in millimeter
                     $apic->addProduct(
                         $product->get_sku(),
                         $product->get_title(),
                         1,
                         $product->get_weight() * 1000,
-                        $product->get_price_including_tax(),
+                        $price_including_tax,
                         0,
                         null,
                         $product->get_width() * 10,
@@ -617,7 +699,12 @@ class Logitrail_WooCommerce {
             }
 
             if($this->debug_mode) {
-                $this->logitrail_debug_log('Added product with info: ' . $product->get_sku() . ', ' . $product->get_title() . ', ' . 1 . ', ' . $product->get_weight() * 1000 . ', ' . $product->get_price_including_tax() . ', ' . 0 . ', ' . get_post_meta($post_id, 'barcode', true) . ', ' . $product->get_width() * 10 . ', ' . $product->get_height() * 10 . ', ' . $product->get_length() * 10);
+                if (function_exists('wc_get_price_including_tax')) {
+                    $price_including_tax = wc_get_price_including_tax($product);
+                } else {
+                    $price_including_tax = $product->get_price_including_tax(); // Woocommerce < 2.7
+                }
+                $this->logitrail_debug_log('Added product with info: ' . $product->get_sku() . ', ' . $product->get_title() . ', ' . 1 . ', ' . $product->get_weight() * 1000 . ', ' . $price_including_tax . ', ' . 0 . ', ' . get_post_meta($post_id, 'barcode', true) . ', ' . $product->get_width() * 10 . ', ' . $product->get_height() * 10 . ', ' . $product->get_length() * 10);
             }
 
             // create products in batches of (about) 5, so in big shops we don't get
