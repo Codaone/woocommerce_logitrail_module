@@ -962,42 +962,51 @@ class Logitrail_WooCommerce {
                     'payload' => json_encode($received_data['payload'])
                 ));
 
+                $payload = $received_data['payload'];
+
                 switch($received_data['event_type']) {
                     case "product.inventory.change":
-                        foreach ($received_data['payload'] as $product) {
-                            // Product Bundles support
-                            if (function_exists('wc_pb_get_bundled_product_map')) {
-                                $parents = wc_pb_get_bundled_product_map($product['merchants_id']);
-                                foreach ($parents as $parent_id) {
-                                    $args = array(
-                                        'bundle_id' => $parent_id,
-                                        'return'     => 'id=>product_id'
-                                    );
+                        $product = $payload['product'];
+                        $available = (int)$payload['inventory']['available'];
 
-                                    $bundle_quantity = wc_get_product($parent_id)->get_stock_quantity();
-                                    if (is_null($bundle_quantity)) {
-                                        continue;
-                                    }
-                                    $children = WC_PB_DB::query_bundled_items( $args );
-                                    $quantities = array();
-                                    foreach ($children as $child_id) {
-                                        $child = wc_get_product($child_id);
-                                        if (!is_null($child->get_stock_quantity())) {
-                                            $quantities[] = $child->get_stock_quantity();
-                                        }
-                                    }
-                                    if (count($quantities) > 0 && min($quantities) < $bundle_quantity) {
-                                        wc_update_product_stock($parent_id, min($quantities));
+                        $wc_product = wc_get_product_id_by_sku($product['merchants_id']);
+
+                        // Product Bundles support
+                        if (function_exists('wc_pb_get_bundled_product_map')) {
+                            $parents = wc_pb_get_bundled_product_map($wc_product);
+                            foreach ($parents as $parent_id) {
+                                $args = array(
+                                    'bundle_id' => $parent_id,
+                                    'return'     => 'id=>product_id'
+                                );
+
+                                $bundle_quantity = wc_get_product($parent_id)->get_stock_quantity();
+                                if (is_null($bundle_quantity)) {
+                                    continue;
+                                }
+                                $children = WC_PB_DB::query_bundled_items( $args );
+                                $quantities = array();
+                                foreach ($children as $child_id) {
+                                    $child = wc_get_product($child_id);
+                                    if (!is_null($child->get_stock_quantity())) {
+                                        $quantities[] = $child->get_stock_quantity();
                                     }
                                 }
+                                if (count($quantities) > 0 && min($quantities) < $bundle_quantity) {
+                                    wc_update_product_stock($parent_id, min($quantities));
+                                }
                             }
-
-                            wc_update_product_stock($product['merchants_id'], $product['inventory']['available']);
                         }
+
+                        wc_update_product_stock($wc_product, $available);
                         break;
                     case "order.shipped":
-                        $order_id = $received_data['merchants_id'];
-                        $order = new WC_Order($order_id);
+                        $order_id = $payload['order']['merchants_order']['id'];
+                        $order = WC_Order_Factory::get_order($order_id);
+                        if (!$order) {
+                            // TODO: Logging / warning if order not found?
+                            break;
+                        }
                         $order->update_status('completed');
                         break;
                 }
