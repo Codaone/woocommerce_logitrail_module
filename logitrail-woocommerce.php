@@ -3,7 +3,7 @@
 /*
     Plugin Name: Logitrail
     Description: Integrate checkout shipping with Logitrail
-    Version: 1.0.6
+    Version: 1.0.7
     Author: <a href="mailto:petri@codaone.fi">Petri Kanerva</a> | <a href="http://www.codaone.fi/">Codaone Oy</a>
 */
 
@@ -220,7 +220,7 @@ class Logitrail_WooCommerce {
 
         // FIXME: If there is any way of getting the shipment customer info here
         // use it (firstname, lastname)
-        $apic->setCustomerInfo('', '', '', '', $address, $postcode, $city, '', '');
+        $apic->setCustomerInfo('', '', '', '', $address, $postcode, $city, '', $country);
         $unique_id = $woocommerce->session->get_customer_id();
         $apic->setOrderId($unique_id);
 
