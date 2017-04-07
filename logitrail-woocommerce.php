@@ -525,7 +525,7 @@ class Logitrail_WooCommerce {
                             $product->get_title(),
                             1,
                             $product->get_weight() * 1000,
-                            $product->$price_including_tax(),
+                            $price_including_tax,
                             0,
                             get_post_meta( $post_id, 'barcode', true ),
                             $product->get_width() * 10,
@@ -843,6 +843,9 @@ class Logitrail_WooCommerce {
 
     function logitrail_notifications() {
         $notifications = get_transient('logitrail_' . wp_get_current_user()->ID . '_notifications');
+        if (!$notifications) {
+            return;
+        }
 
         foreach($notifications as $notification) {
             printf( '<div class="%1$s"><p>%2$s</p></div>', $notification['class'], $notification['message'] );
