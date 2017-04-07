@@ -3,7 +3,7 @@
 /*
     Plugin Name: Logitrail
     Description: Integrate checkout shipping with Logitrail
-    Version: 1.0.8
+    Version: 1.0.9
     Author: <a href="mailto:petri@codaone.fi">Petri Kanerva</a> | <a href="http://www.codaone.fi/">Codaone Oy</a>
 */
 
@@ -50,7 +50,6 @@ class Logitrail_WooCommerce {
      * Constructor
      */
     public function __construct() {
-        register_activation_hook(__FILE__, array($this, 'logitrail_install'));
         register_uninstall_hook(__FILE__, array($this, 'logitrail_uninstall'));
 
         add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), array( $this, 'wf_plugin_action_links' ) );
@@ -231,6 +230,7 @@ class Logitrail_WooCommerce {
         $cartContent = $woocommerce->cart->get_cart();
 
         $shipping_count = 0;
+        $total_sum = 0;
 
         foreach($cartContent as $cartItem) {
             /** @var WC_Product $product */
@@ -265,19 +265,22 @@ class Logitrail_WooCommerce {
                     $tax
                 );
                 $shipping_count++;
+                $total_sum += $price_including_tax;
             }
 
             if($this->debug_mode) {
                 $this->logitrail_debug_log('Form, added product with data: ' . '""' . ', ' . '""' . ', ' . '""' . ', ' . '""' . ', ' .  $address . ', ' . $postcode . ', ' . $city);
             }
-
         }
         $lang = explode('_', get_locale())[0];
-        if ($lang) {
-            $form = $apic->getForm($lang);
-        } else {
-            $form = $apic->getForm();
+        if (!$lang) {
+            $lang = 'fi'; // Defaults to finnish
         }
+        $fields = array(
+            'total_sum' => $total_sum
+        );
+        $form = $apic->getForm($lang, $fields);
+
         $unique_id = $woocommerce->session->get_customer_id();
         if ($shipping_count > 0) {
             set_transient('logitrail_' . $unique_id . '_shipping', true);
@@ -892,21 +895,21 @@ class Logitrail_WooCommerce {
         $tables = self::$tables;
         $settings = get_option('woocommerce_logitrail_shipping_settings');
 
-        dbDelta( "CREATE TABLE `{$tables['debug']}` (
-                  `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,
-                  `session` varchar(255) NOT NULL,
-                  `operation` varchar(255) NOT NULL,
-                  `created_at` int NOT NULL
+        dbDelta( "CREATE TABLE {$tables['debug']} (
+                  id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                  session varchar(255) NOT NULL,
+                  operation varchar(255) NOT NULL,
+                  created_at int NOT NULL
                 ) ENGINE='InnoDB'" );
 
-        dbDelta( "CREATE TABLE `{$tables['log']}` (
-                  `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,
-                  `event_id` varchar(255) NOT NULL,
-                  `event_type` varchar(255) NOT NULL,
-                  `webhook_id` varchar(255) NOT NULL,
-                  `timestamp` int NOT NULL,
-                  `retry_count` int NOT NULL,
-                  `payload` text NOT NULL
+        dbDelta( "CREATE TABLE {$tables['log']} (
+                  id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                  event_id varchar(255) NOT NULL,
+                  event_type varchar(255) NOT NULL,
+                  webhook_id varchar(255) NOT NULL,
+                  timestamp int NOT NULL,
+                  retry_count int NOT NULL,
+                  payload text NOT NULL
                 ) ENGINE='InnoDB'" );
 
         $username = wp_generate_password(8, false);
