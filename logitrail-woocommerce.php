@@ -3,7 +3,7 @@
 /*
     Plugin Name: Logitrail
     Description: Integrate checkout shipping with Logitrail
-    Version: 1.0.7
+    Version: 1.0.8
     Author: <a href="mailto:petri@codaone.fi">Petri Kanerva</a> | <a href="http://www.codaone.fi/">Codaone Oy</a>
 */
 
@@ -1007,7 +1007,9 @@ class Logitrail_WooCommerce {
                         $order_id = $payload['order']['merchants_order']['id'];
                         $order = WC_Order_Factory::get_order($order_id);
                         if (!$order) {
-                            // TODO: Logging / warning if order not found?
+                            if($this->debug_mode) {
+                                $this->logitrail_debug_log('Webhook order.shipped failed, order id ' . $order_id . ' not found');
+                            }
                             break;
                         }
                         $order->update_status('completed');
