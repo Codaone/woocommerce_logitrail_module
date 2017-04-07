@@ -231,6 +231,7 @@ class Logitrail_WooCommerce {
         $cartContent = $woocommerce->cart->get_cart();
 
         $shipping_count = 0;
+        $total_sum = 0;
 
         foreach($cartContent as $cartItem) {
             /** @var WC_Product $product */
@@ -265,19 +266,22 @@ class Logitrail_WooCommerce {
                     $tax
                 );
                 $shipping_count++;
+                $total_sum += $price_including_tax;
             }
 
             if($this->debug_mode) {
                 $this->logitrail_debug_log('Form, added product with data: ' . '""' . ', ' . '""' . ', ' . '""' . ', ' . '""' . ', ' .  $address . ', ' . $postcode . ', ' . $city);
             }
-
         }
         $lang = explode('_', get_locale())[0];
-        if ($lang) {
-            $form = $apic->getForm($lang);
-        } else {
-            $form = $apic->getForm();
+        if (!$lang) {
+            $lang = 'fi'; // Defaults to finnish
         }
+        $fields = array(
+            'total_sum' => $total_sum
+        );
+        $form = $apic->getForm($lang, $fields);
+
         $unique_id = $woocommerce->session->get_customer_id();
         if ($shipping_count > 0) {
             set_transient('logitrail_' . $unique_id . '_shipping', true);
