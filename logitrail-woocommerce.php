@@ -1044,7 +1044,7 @@ class Logitrail_WooCommerce {
      * @return bool
      */
     public function logitrail_is_virtual($product, $ignore_bundled = false) {
-        // We don't want to ship virtual products, but bundled products are virtual so exclude them
+        // We don't want to ship virtual products, so we check is the product really virtual, or just part of bundle and marked virtual for this
         if ( $product->is_virtual() && (!property_exists($product, 'bundled_value') || $ignore_bundled) ) {
             return true;
         } else {
