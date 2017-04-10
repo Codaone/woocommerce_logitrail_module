@@ -81,8 +81,8 @@ class Logitrail_WooCommerce {
         add_action( 'woocommerce_product_options_general_product_data', array($this, 'logitrail_add_barcode'));
         add_action( 'woocommerce_process_product_meta', array($this, 'logitrail_barcode_save'));
 
-        add_action( 'woocommerce_product_options_shipping', array($this, 'add_enable_logitrail_shipping'));
-        add_action( 'woocommerce_process_product_meta', array($this, 'enable_logitrail_shipping_save'));
+        add_action( 'woocommerce_product_options_shipping', array($this, 'logitrail_add_enable_shipping'));
+        add_action( 'woocommerce_process_product_meta', array($this, 'logitrail_enable_shipping_save'));
 
         add_action( 'woocommerce_product_after_variable_attributes', array($this, 'logitrail_variation_settings_fields'), 10, 3 );
         add_action( 'woocommerce_save_product_variation', array($this, 'logitrail_save_variation_settings_fields'), 10, 2 );
@@ -761,7 +761,7 @@ class Logitrail_WooCommerce {
         );
     }
 
-    public static function add_enable_logitrail_shipping() {
+    public static function logitrail_add_enable_shipping() {
         global $post;
         $value = Logitrail_WooCommerce::logitrail_get_shipping($post->ID);
         woocommerce_wp_checkbox(
@@ -815,7 +815,7 @@ class Logitrail_WooCommerce {
         }
     }
 
-    function enable_logitrail_shipping_save($post_id) {
+    function logitrail_enable_shipping_save($post_id) {
         if( !empty($_POST['enable_logitrail_shipping']) ) {
             update_post_meta( $post_id, 'logitrail_enable_shipping', esc_attr( $_POST['logitrail_enable_shipping'] ) );
         } else {
@@ -825,7 +825,7 @@ class Logitrail_WooCommerce {
 
     function logitrail_save_variation_settings_fields( $post_id ) {
         $text_field = $_POST['barcode'][ $post_id ];
-        if( ! empty( $text_field ) ) {
+        if( !empty( $text_field ) ) {
             update_post_meta( $post_id, 'barcode', esc_attr( $text_field ) );
         }
     }
@@ -1043,7 +1043,6 @@ class Logitrail_WooCommerce {
      * @return bool
      */
     public function logitrail_is_virtual($product, $ignore_bundled = false) {
-        $test = wc_pb_get_bundled_product_map($product);
         // We don't want to ship virtual products, but bundled products are virtual so exclude them
         if ( $product->is_virtual() && (!property_exists($product, 'bundled_value') || $ignore_bundled) ) {
             return true;
