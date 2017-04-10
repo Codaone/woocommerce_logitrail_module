@@ -3,7 +3,7 @@
 /*
     Plugin Name: Logitrail
     Description: Integrate checkout shipping with Logitrail
-    Version: 1.0.10
+    Version: 1.0.11
     Author: <a href="mailto:petri@codaone.fi">Petri Kanerva</a> | <a href="http://www.codaone.fi/">Codaone Oy</a>
 */
 
@@ -265,9 +265,6 @@ class Logitrail_WooCommerce {
                     $tax
                 );
                 $shipping_count++;
-            }
-            if ($this->logitrail_is_virtual($product, true) && $this->logitrail_shipping_enabled($product->get_id())) {
-                $total_sum -= $price_including_tax;
             }
 
             if($this->debug_mode) {
