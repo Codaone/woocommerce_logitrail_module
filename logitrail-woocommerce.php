@@ -3,7 +3,7 @@
 /*
     Plugin Name: Logitrail
     Description: Integrate checkout shipping with Logitrail
-    Version: 1.0.9
+    Version: 1.0.10
     Author: <a href="mailto:petri@codaone.fi">Petri Kanerva</a> | <a href="http://www.codaone.fi/">Codaone Oy</a>
 */
 
@@ -230,7 +230,7 @@ class Logitrail_WooCommerce {
         $cartContent = $woocommerce->cart->get_cart();
 
         $shipping_count = 0;
-        $total_sum = 0;
+        $total_sum = $woocommerce->cart->subtotal;
 
         foreach($cartContent as $cartItem) {
             /** @var WC_Product $product */
@@ -255,7 +255,7 @@ class Logitrail_WooCommerce {
             } else {
                 $price_including_tax = $product->get_price_including_tax(); // Woocommerce < 2.7
             }
-            if (!$product->is_downloadable() && $this->logitrail_shipping_enabled($product->get_id())) {
+            if (!$this->logitrail_is_virtual($product) && $this->logitrail_shipping_enabled($product->get_id())) {
                 $apic->addProduct(
                     $product->get_sku(),
                     $product->get_title(),
@@ -265,7 +265,9 @@ class Logitrail_WooCommerce {
                     $tax
                 );
                 $shipping_count++;
-                $total_sum += $price_including_tax;
+            }
+            if ($this->logitrail_is_virtual($product, true) && $this->logitrail_shipping_enabled($product->get_id())) {
+                $total_sum -= $price_including_tax;
             }
 
             if($this->debug_mode) {
@@ -288,7 +290,6 @@ class Logitrail_WooCommerce {
         } else {
             set_transient('logitrail_' . $unique_id . '_shipping', false);
         }
-
 
         if($this->debug_mode) {
             $this->logitrail_debug_log('Form, returned via ajax');
@@ -500,7 +501,7 @@ class Logitrail_WooCommerce {
                         } else {
                             $price_including_tax = $child->get_price_including_tax(); // Woocommerce < 2.7
                         }
-                        if (!$child->is_downloadable() && $this->logitrail_shipping_enabled($child->get_id())) {
+                        if (!$this->logitrail_is_virtual($child) && $this->logitrail_shipping_enabled($child->get_id())) {
                             $apic->addProduct(
                                 $child->get_sku(),
                                 $child_title,
@@ -522,7 +523,7 @@ class Logitrail_WooCommerce {
                         $price_including_tax = $product->get_price_including_tax(); // Woocommerce < 2.7
                     }
                     // weight for Logitrail goes in grams, dimensions in millimeter
-                    if (!$product->is_downloadable() && $this->logitrail_shipping_enabled($product->get_id())) {
+                    if (!$this->logitrail_is_virtual($product) && $this->logitrail_shipping_enabled($product->get_id())) {
                         $apic->addProduct(
                             $product->get_sku(),
                             $product->get_title(),
@@ -654,7 +655,7 @@ class Logitrail_WooCommerce {
                     } else {
                         $price_including_tax = $child->get_price_including_tax(); // Woocommerce < 2.7
                     }
-                    if (!$child->is_downloadable() && $this->logitrail_shipping_enabled($child->get_id())) {
+                    if (!$this->logitrail_is_virtual($child) && $this->logitrail_shipping_enabled($child->get_id())) {
                         $apic->addProduct(
                             $child->get_sku(),
                             $child_title,
@@ -672,7 +673,7 @@ class Logitrail_WooCommerce {
                     }
                 }
             } else {
-                if (!$product->is_downloadable() && $this->logitrail_shipping_enabled($product->get_id())) {
+                if (!$this->logitrail_is_virtual($product) && $this->logitrail_shipping_enabled($product->get_id())) {
                     if (in_array($product->get_sku(), $sku_array)) {
                         $this->logitrail_set_error('Tuotteen "' . $product->title . '" SKU "'. $product->get_sku() .'" on jo lisätty. Tuotetta ei voitu viedä Logitrail-järjestelmään.');
                         $errors++;
@@ -762,10 +763,10 @@ class Logitrail_WooCommerce {
 
     public static function add_enable_logitrail_shipping() {
         global $post;
-        $value = Logitrail_WooCommerce::logitrail_shipping_enabled($post->ID);
+        $value = Logitrail_WooCommerce::logitrail_get_shipping($post->ID);
         woocommerce_wp_checkbox(
             array(
-                'id' => 'enable_logitrail_shipping',
+                'id' => 'logitrail_enable_shipping',
                 'label' => __( 'Enable shipping via Logitrail', 'woocommerce' ),
                 'cbvalue' => true,
                 'value' => $value,
@@ -789,6 +790,20 @@ class Logitrail_WooCommerce {
         );
     }
 
+    /**
+     * Get logitrail_enable_shipping option, defaults as true
+     * @param $product_id
+     * @return bool
+     */
+    public static function logitrail_get_shipping($product_id) {
+        $shipping = get_post_meta($product_id, 'logitrail_enable_shipping', true);
+        if ( $shipping || $shipping === "" ) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     function logitrail_barcode_save($post_id){
         // Saving Barcode
         $barcode = $_POST['barcode'][$post_id];
@@ -802,9 +817,9 @@ class Logitrail_WooCommerce {
 
     function enable_logitrail_shipping_save($post_id) {
         if( !empty($_POST['enable_logitrail_shipping']) ) {
-            update_post_meta( $post_id, 'enable_logitrail_shipping', esc_attr( $_POST['enable_logitrail_shipping'] ) );
+            update_post_meta( $post_id, 'logitrail_enable_shipping', esc_attr( $_POST['logitrail_enable_shipping'] ) );
         } else {
-            update_post_meta( $post_id, 'enable_logitrail_shipping', "0" );
+            update_post_meta( $post_id, 'logitrail_enable_shipping', "0" );
         }
     }
 
@@ -1022,19 +1037,34 @@ class Logitrail_WooCommerce {
         }
     }
 
-    public static function  logitrail_shipping_enabled($product_id) {
-        $product = wc_get_product( $product_id );
-        // Disable shipping on some product types
-        if ( in_array($product->get_type(), array("bundle")) ) {
-            return false;
-        }
-
-        $shipping = get_post_meta($product_id, 'enable_logitrail_shipping', true);
-        if ( $shipping || $shipping === "") {
+    /**
+     * @param WC_Product $product
+     * @param bool $ignore_bundled
+     * @return bool
+     */
+    public function logitrail_is_virtual($product, $ignore_bundled = false) {
+        $test = wc_pb_get_bundled_product_map($product);
+        // We don't want to ship virtual products, but bundled products are virtual so exclude them
+        if ( $product->is_virtual() && (!property_exists($product, 'bundled_value') || $ignore_bundled) ) {
             return true;
         } else {
             return false;
         }
+    }
+
+    /**
+     * Check if product is shippable
+     *
+     * @param int $product_id
+     * @return bool
+     */
+    public static function logitrail_shipping_enabled($product_id) {
+        $product = wc_get_product( $product_id );
+        // Disable shipping on bundle products
+        if ( in_array($product->get_type(), array("bundle")) ) {
+            return false;
+        }
+        return self::logitrail_get_shipping($product_id);
     }
 }
 
