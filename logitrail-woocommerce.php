@@ -816,7 +816,7 @@ class Logitrail_WooCommerce {
     }
 
     function logitrail_enable_shipping_save($post_id) {
-        if( !empty($_POST['enable_logitrail_shipping']) ) {
+        if( !empty($_POST['logitrail_enable_shipping']) ) {
             update_post_meta( $post_id, 'logitrail_enable_shipping', esc_attr( $_POST['logitrail_enable_shipping'] ) );
         } else {
             update_post_meta( $post_id, 'logitrail_enable_shipping', "0" );
