@@ -807,7 +807,7 @@ class Logitrail_WooCommerce {
     function logitrail_barcode_save($post_id){
         // Saving Barcode
         $barcode = $_POST['barcode'][$post_id];
-        if( !empty($barcode) ) {
+        if( isset($barcode) && !empty($barcode) ) {
             update_post_meta( $post_id, 'barcode', esc_attr( $barcode ) );
         }
         else {
@@ -816,8 +816,9 @@ class Logitrail_WooCommerce {
     }
 
     function logitrail_enable_shipping_save($post_id) {
-        if( !empty($_POST['logitrail_enable_shipping']) ) {
-            update_post_meta( $post_id, 'logitrail_enable_shipping', esc_attr( $_POST['logitrail_enable_shipping'] ) );
+        $shipping = $_POST['logitrail_enable_shipping'];
+        if( isset($shipping) && !empty($shipping) ) {
+            update_post_meta( $post_id, 'logitrail_enable_shipping', esc_attr( $shipping ) );
         } else {
             update_post_meta( $post_id, 'logitrail_enable_shipping', "0" );
         }
@@ -825,7 +826,7 @@ class Logitrail_WooCommerce {
 
     function logitrail_save_variation_settings_fields( $post_id ) {
         $text_field = $_POST['barcode'][ $post_id ];
-        if( !empty( $text_field ) ) {
+        if( isset($text_field) && !empty( $text_field ) ) {
             update_post_meta( $post_id, 'barcode', esc_attr( $text_field ) );
         }
     }
