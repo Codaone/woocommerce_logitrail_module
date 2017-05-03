@@ -57,6 +57,7 @@ class Logitrail_WooCommerce {
         add_filter( 'woocommerce_shipping_methods', array( $this, 'logitrail_add_method') );
 
         add_action( 'woocommerce_checkout_shipping', array($this, 'logitrail_get_template') );
+        add_action( 'woocommerce_checkout_order_processed', array($this, 'logitrail_before_payment') );
         add_action( 'woocommerce_thankyou', array($this, 'logitrail_payment_complete'), 10, 1 );
 
         add_action( 'wc_ajax_logitrail', array($this, 'logitrail_get_form' ) );
@@ -107,10 +108,8 @@ class Logitrail_WooCommerce {
     }
 
     public function validate_shipping_method($data = '') {
-        global $woocommerce;
-        $unique_id = $woocommerce->session->get_customer_id();
-        $shipping_method = get_transient('logitrail_' . $unique_id . '_type');
-        $shippable = get_transient('logitrail_'. $unique_id . '_shipping');
+        $shipping_method = WC()->session->get('type');
+        $shippable = WC()->session->get('shipping');
         if (!$shipping_method && $shippable) {
             wc_add_notice( apply_filters( 'woocommerce_checkout_required_field_notice', 'Valitse toimitustapa.'), 'error' );
         }
@@ -149,11 +148,9 @@ class Logitrail_WooCommerce {
      *
      * @access public
      * @param mixed $methods
-     * @return void
      */
     function logitrail_add_method( $methods ) {
         $methods[] = 'Logitrail_Shipping';
-
         return $methods;
     }
 
@@ -220,17 +217,13 @@ class Logitrail_WooCommerce {
         // FIXME: If there is any way of getting the shipment customer info here
         // use it (firstname, lastname)
         $apic->setCustomerInfo('', '', '', '', $address, $postcode, $city, '', $country);
-        $unique_id = $woocommerce->session->get_customer_id();
-        $apic->setOrderId($unique_id);
+        $apic->setOrderId($woocommerce->session->get_customer_id());
 
-        if($this->debug_mode) {
-            $this->logitrail_debug_log('Form, creating with data: ' . '""' . ', ' . '""' . ', ' . '""' . ', ' . '""' . ', ' .  $address . ', ' . $postcode . ', ' . $city);
-        }
-
-        $cartContent = $woocommerce->cart->get_cart();
+        self::logitrail_debug_log('Form, creating with data: ' . '""' . ', ' . '""' . ', ' . '""' . ', ' . '""' . ', ' .  $address . ', ' . $postcode . ', ' . $city);
 
         $shipping_count = 0;
         $total_sum = $woocommerce->cart->subtotal;
+        $cartContent = $woocommerce->cart->get_cart();
 
         foreach($cartContent as $cartItem) {
             /** @var WC_Product $product */
@@ -267,9 +260,7 @@ class Logitrail_WooCommerce {
                 $shipping_count++;
             }
 
-            if($this->debug_mode) {
-                $this->logitrail_debug_log('Form, added product with data: ' . '""' . ', ' . '""' . ', ' . '""' . ', ' . '""' . ', ' .  $address . ', ' . $postcode . ', ' . $city);
-            }
+            self::logitrail_debug_log('Form, added product with data: ' . '""' . ', ' . '""' . ', ' . '""' . ', ' . '""' . ', ' .  $address . ', ' . $postcode . ', ' . $city);
         }
         $lang = explode('_', get_locale())[0];
         if (!$lang) {
@@ -280,38 +271,60 @@ class Logitrail_WooCommerce {
         );
         $form = $apic->getForm($lang, $fields);
 
-        $unique_id = $woocommerce->session->get_customer_id();
         if ($shipping_count > 0) {
-            set_transient('logitrail_' . $unique_id . '_shipping', true);
+            WC()->session->set('shipping', true);
             echo $form;
         } else {
-            set_transient('logitrail_' . $unique_id . '_shipping', false);
+            WC()->session->set('shipping', false);
         }
 
-        if($this->debug_mode) {
-            $this->logitrail_debug_log('Form, returned via ajax');
-        }
-
+        self::logitrail_debug_log('Form, returned via ajax');
         wp_die();
     }
 
-    /*
-     * Set price via AJAX call
+    /**
+     * Check if logitrail order_id is lost, apply it to order meta data if not
+     * @param $order_id
      */
-    public function logitrail_set_price() {
-        global $woocommerce;
+    public function logitrail_before_payment($order_id) {
+        $logitrail_id = WC()->session->get('order_id');
+        $shippable = WC()->session->get('shipping');
 
-        $unique_id = $woocommerce->session->get_customer_id();
-        set_transient('logitrail_' . $unique_id . '_price', $_POST['postage']);
-        set_transient('logitrail_' . $unique_id . '_order_id', $_POST['order_id']);
-        set_transient('logitrail_' . $unique_id . '_type', $_POST['delivery_type']);
+        if ($logitrail_id) {
+            update_post_meta($order_id, 'logitrail_id', $logitrail_id);
+            update_post_meta($order_id, 'shipping', $shippable);
 
-        if($this->debug_mode) {
-            $this->logitrail_debug_log('Setting postage to ' . $_POST['postage']);
+            // Unset unneeded values
+            WC()->session->set('order_id', null);
+            WC()->session->set('shipping', null);
+            WC()->session->set('type', null);
+            WC()->session->set('price', null);
+        } else {
+            wp_delete_post($order_id, true);
+            wc_add_notice(__('Tilauksen luominen ei onnistunut, yritä uudelleen', 'logitrail'), 'error' );
+            if ( is_ajax() ) {
+                if ( ! isset( WC()->session->reload_checkout ) ) {
+                    ob_start();
+                    wc_print_notices();
+                    $messages = ob_get_clean();
+                }
 
-            $postage = get_transient('logitrail_' . $unique_id . '_price');
+                $response = array(
+                    'result'   => 'failure',
+                    'messages' => isset( $messages ) ? $messages : '',
+                    'refresh'  => isset( WC()->session->refresh_totals ) ? 'true' : 'false',
+                    'reload'   => isset( WC()->session->reload_checkout ) ? 'true' : 'false'
+                );
 
-            $this->logitrail_debug_log('Confirming postage value as ' . $postage);
+                unset( WC()->session->refresh_totals, WC()->session->reload_checkout );
+                wp_send_json( $response );
+            } else {
+                wp_safe_redirect(
+                    WC()->cart->get_checkout_url()
+                );
+                exit;
+            }
+
         }
     }
 
@@ -332,10 +345,8 @@ class Logitrail_WooCommerce {
         $apic->setMerchantId($settings['merchant_id']);
         $apic->setSecretKey($settings['secret_key']);
 
-        $unique_id = $woocommerce->session->get_customer_id();
-
-        $order_id = get_transient('logitrail_' . $unique_id . '_order_id');
-        $shippable = get_transient('logitrail_' . $unique_id . '_shipping');
+        $order_id = get_post_meta($this_id, 'logitrail_id', true);
+        $shippable = get_post_meta($this_id, 'shipping', true);
         if (method_exists($order, 'get_shipping_first_name')) {
             $shipping_first_name = $order->get_shipping_first_name();
             $shipping_last_name = $order->get_shipping_last_name();
@@ -361,21 +372,22 @@ class Logitrail_WooCommerce {
             $shipping_country = $order->shipping_country;
         }
         if (!$shippable) {
-            // Product is not shippable, do nothing
+            // Only virtual products in the order, no shipping needed
+            $order->set_status('completed');
         } else if (!$order_id) {
-            if ($this->debug_mode) {
-                $this->logitrail_debug_log('Order confirmation failed with details: ' .
-                    $shipping_first_name . ', ' .
-                    $shipping_last_name . ', ' .
-                    $billing_phone . ', ' .
-                    $billing_email . ', ' .
-                    $shipping_address_1 . ' ' .
-                    $shipping_address_2 . ', ' .
-                    $shipping_postcode . ', ' .
-                    $shipping_city
-                );
-            }
+            self::logitrail_debug_log('Order confirmation failed with details: ' .
+                $shipping_first_name . ', ' .
+                $shipping_last_name . ', ' .
+                $billing_phone . ', ' .
+                $billing_email . ', ' .
+                $shipping_address_1 . ' ' .
+                $shipping_address_2 . ', ' .
+                $shipping_postcode . ', ' .
+                $shipping_city
+            );
             echo "<br><b style='color: red'>Tilauksen vahvistaminen epäonnistui, ota yhteyttä myyjään</b><br>";
+            $order->add_order_note(__("Tilauksen lähettäminen Logitrailiin epäonnistui", "logitrail"), 0, true);
+            $order->set_status('failed');
         } else {
             // Order confirmation
             $apic->setOrderId($this_id);
@@ -396,32 +408,27 @@ class Logitrail_WooCommerce {
             $result = $apic->confirmOrder($order_id);
             // TODO: translate
             echo "<br>Voit seurata toimitustasi osoitteessa: <a href='" . $result['tracking_url'] . "' target='_BLANK'>" . $result['tracking_url'] . "</a><br>";
+            $order->add_order_note(__("Tilaus lähetetty onnistuneesti Logitrailiin id:llä ". $order_id, "logitrail"), 0, true);
 
-            if($this->debug_mode) {
-                $this->logitrail_debug_log(
-                    'Confirmed order ' . $order_id . 'with details: ' .
-                    $shipping_first_name . ', ' .
-                    $shipping_last_name . ', ' .
-                    $billing_phone . ', ' .
-                    $billing_email . ', ' .
-                    $shipping_address_1 . ' ' .
-                    $shipping_address_2 . ', ' .
-                    $shipping_postcode . ', ' .
-                    $shipping_city
-                );
-            }
+            self::logitrail_debug_log(
+                'Confirmed order ' . $order_id . ' with details: ' .
+                $shipping_first_name . ', ' .
+                $shipping_last_name . ', ' .
+                $billing_phone . ', ' .
+                $billing_email . ', ' .
+                $shipping_address_1 . ' ' .
+                $shipping_address_2 . ', ' .
+                $shipping_postcode . ', ' .
+                $shipping_city
+            );
         }
-        delete_transient('logitrail_' . $unique_id . '_price');
-        delete_transient('logitrail_' . $unique_id . '_order_id');
-        delete_transient('logitrail_' . $unique_id . '_type');
-        delete_transient('logitrail_' . $unique_id . '_shipping');
         unset(WC()->session->shipping_for_package);
     }
 
     /**
      * Update shipping price when order review is updated
      *
-     * @global type $woocommerce
+     * @global WooCommerce $woocommerce
      */
     public static function logitrail_woocommerce_review_order_before_shipping() {
         global $woocommerce;
@@ -433,8 +440,7 @@ class Logitrail_WooCommerce {
         foreach ( $packages as $key => $package ) {
             // if the shipping is set, remove it
             if ( isset( $package['rates']['logitrail_shipping_postage'] ) ) {
-                $unique_id = $woocommerce->session->get_customer_id();
-                $package['rates']['logitrail_shipping_postage']->cost = get_transient('logitrail_' . $unique_id . '_price');
+                $package['rates']['logitrail_shipping_postage']->cost = WC()->session->get('price');
             }
         }
 
@@ -442,12 +448,22 @@ class Logitrail_WooCommerce {
         $woocommerce->shipping->packages = $packages;
     }
 
+    /*
+     * Set price via AJAX call
+     */
+    public function logitrail_set_price() {
+        WC()->session->set('price', $_POST['postage']);
+        WC()->session->set('order_id', $_POST['order_id']);
+        WC()->session->set('type', $_POST['delivery_type']);
+
+        self::logitrail_debug_log('Setting postage to ' . $_POST['postage']);
+        $postage = WC()->session->get('price');
+        self::logitrail_debug_log('Confirming postage value as ' . $postage);
+    }
+
     function logitrail_create_product($post_id) {
         if ( get_post_status ( $post_id ) == 'publish' ) {
-            global $woocommerce;
-
             $settings = get_option( 'woocommerce_logitrail_shipping_settings' );
-
             $product = wc_get_product( $post_id );
 
             if ( ! $product ) {
@@ -556,32 +572,14 @@ class Logitrail_WooCommerce {
                     //wc_add_notice("Virhe " . $errors . " tuotteen kohdalla siirrettäessä " . count('$responses') . " tuotetta Logitrailille");
                 }
 
-                if ( $this->debug_mode ) {
-                    if (function_exists('wc_get_price_including_tax')) {
-                        $price_including_tax = wc_get_price_including_tax($product);
-                    } else {
-                        $price_including_tax = $product->get_price_including_tax(); // Woocommerce < 2.7
-                    }
-                    $this->logitrail_debug_log( 'Added product with info: ' . $product->get_sku() . ', ' . $product->get_title() . ', ' . 1 . ', ' . $product->get_weight() * 1000 . ', ' . $price_including_tax . ', ' . 0 . ', ' . get_post_meta( $post_id, 'barcode', true ) . ', ' . $product->get_width() * 10 . ', ' . $product->get_height() * 10 . ', ' . $product->get_length() * 10 );
+                if (function_exists('wc_get_price_including_tax')) {
+                    $price_including_tax = wc_get_price_including_tax($product);
+                } else {
+                    $price_including_tax = $product->get_price_including_tax(); // Woocommerce < 2.7
                 }
+                self::logitrail_debug_log( 'Added product with info: ' . $product->get_sku() . ', ' . $product->get_title() . ', ' . 1 . ', ' . $product->get_weight() * 1000 . ', ' . $price_including_tax . ', ' . 0 . ', ' . get_post_meta( $post_id, 'barcode', true ) . ', ' . $product->get_width() * 10 . ', ' . $product->get_height() * 10 . ', ' . $product->get_length() * 10 );
             }
         }
-    }
-
-    /**
-     * Set error for the user
-     *
-     * @param string $message
-     */
-    function logitrail_set_error($message) {
-        $notifications = get_transient('logitrail_' . wp_get_current_user()->ID . '_notifications');
-        $notifications[] =
-            array(
-                'class' => 'notice notice-error',
-                'message' => $message
-            );
-
-        set_transient('logitrail_' . wp_get_current_user()->ID . '_notifications', $notifications);
     }
 
     /**
@@ -699,14 +697,12 @@ class Logitrail_WooCommerce {
                 }
             }
 
-            if($this->debug_mode) {
-                if (function_exists('wc_get_price_including_tax')) {
-                    $price_including_tax = wc_get_price_including_tax($product);
-                } else {
-                    $price_including_tax = $product->get_price_including_tax(); // Woocommerce < 2.7
-                }
-                $this->logitrail_debug_log('Added product with info: ' . $product->get_sku() . ', ' . $product->get_title() . ', ' . 1 . ', ' . $product->get_weight() * 1000 . ', ' . $price_including_tax . ', ' . 0 . ', ' . get_post_meta($post_id, 'barcode', true) . ', ' . $product->get_width() * 10 . ', ' . $product->get_height() * 10 . ', ' . $product->get_length() * 10);
+            if (function_exists('wc_get_price_including_tax')) {
+                $price_including_tax = wc_get_price_including_tax($product);
+            } else {
+                $price_including_tax = $product->get_price_including_tax(); // Woocommerce < 2.7
             }
+            self::logitrail_debug_log('Added product with info: ' . $product->get_sku() . ', ' . $product->get_title() . ', ' . 1 . ', ' . $product->get_weight() * 1000 . ', ' . $price_including_tax . ', ' . 0 . ', ' . get_post_meta($post_id, 'barcode', true) . ', ' . $product->get_width() * 10 . ', ' . $product->get_height() * 10 . ', ' . $product->get_length() * 10);
 
             // create products in batches of (about) 5, so in big shops we don't get
             // huge amount of products taking memory in ApiClient
@@ -717,30 +713,26 @@ class Logitrail_WooCommerce {
                 $apic->clearProducts();
                 $productsAdded = 0;
 
-                if($this->debug_mode) {
-                    $this->logitrail_debug_log('Created or updated added products and emptied products list,');
-                }
+                self::logitrail_debug_log('Created or updated added products and emptied products list,');
             }
         }
 
         $response = $apic->createProducts();
         $apic->clearProducts();
 
-        if($this->debug_mode) {
-            $this->logitrail_debug_log('Created or updated added products and emptied products list,');
-        }
+        self::logitrail_debug_log('Created or updated added products and emptied products list,');
 
         wp_reset_query();
 
         if (!$errors) {
-            $notifications = get_transient('logitrail_' . wp_get_current_user()->ID . '_notifications');
+            $notifications = self::logitrail_get_transient('notifications',  wp_get_current_user()->ID);
             $notifications[] =
                 array(
                     'class' => 'updated notice notice-success is-dismissible',
                     'message' => 'Tuotteet viety Logitrail-järjestelmään.'
                 );
 
-            set_transient('logitrail_' . wp_get_current_user()->ID . '_notifications', $notifications);
+            self::logitrail_set_transient('notifications', $notifications,  wp_get_current_user()->ID);
         }
     }
 
@@ -802,7 +794,6 @@ class Logitrail_WooCommerce {
     }
 
     function logitrail_barcode_save($post_id){
-        // Saving Barcode
         $barcode = $_POST['barcode'][$post_id];
         if( isset($barcode) && !empty($barcode) ) {
             update_post_meta( $post_id, 'barcode', esc_attr( $barcode ) );
@@ -852,55 +843,7 @@ class Logitrail_WooCommerce {
         // WooCommerce 2.5 cache
         unset(WC()->session->shipping_for_package);
 
-        if($this->debug_mode) {
-            $this->logitrail_debug_log('Emptied caches: 2.5 (' . print_r(WC()->session->shipping_for_package, true) . '), 2.6 (' . implode(', ', $rates26) . ') ' . $_POST['postage']);
-        }
-    }
-
-    function logitrail_notifications() {
-        $notifications = get_transient('logitrail_' . wp_get_current_user()->ID . '_notifications');
-        if (!$notifications) {
-            return;
-        }
-
-        foreach($notifications as $notification) {
-            printf( '<div class="%1$s"><p>%2$s</p></div>', $notification['class'], $notification['message'] );
-        }
-
-        set_transient('logitrail_' . wp_get_current_user()->ID . '_notifications', array());
-    }
-
-
-
-    // Functions related to debug logs
-
-    public static function get_debug_log() {
-        global $wpdb;
-
-        $sql = "SELECT * FROM `" . self::$tables['debug'] . "` ORDER BY created_at DESC LIMIT 100";
-        $results = $wpdb->get_results($sql, ARRAY_A);
-
-        $lines = array();
-        foreach($results as $id => $row) {
-            $lines[] = '<b>' . Date('d.m.Y H:i:s', $row['created_at']) . "</b> {$row['operation']}";
-        }
-
-        wp_send_json($lines);
-    }
-
-    public static function clear_debug_log() {
-        global $wpdb;
-
-        $delete = $wpdb->query("TRUNCATE TABLE `" . self::$tables['debug'] . "`");
-
-        wp_send_json(array('status' => 'success'));
-    }
-
-    public static function logitrail_debug_log($text) {
-        global $wpdb;
-
-        $wpsess = 'aa'; //WP_Session_Tokens::get();
-        $wpdb->insert( self::$tables['debug'], array('session' => $wpsess, 'operation' => $text, 'created_at' => time()) );
+        self::logitrail_debug_log('Emptied caches: 2.5 (' . print_r(WC()->session->shipping_for_package, true) . '), 2.6 (' . implode(', ', $rates26) . ') ' . $_POST['postage']);
     }
 
     public static function logitrail_install() {
@@ -957,11 +900,14 @@ class Logitrail_WooCommerce {
     function register_api_hooks() {
         register_rest_route( 'logitrail', '/update/', array(
             'methods' => 'POST',
-            'callback' => array($this, 'update_product'),
+            'callback' => array($this, 'logitrail_update_info'),
         ) );
     }
 
-    function update_product() {
+    /**
+     * Used to update orders and products with a webhook
+     */
+    function logitrail_update_info() {
         global $wpdb;
         $apic = new Logitrail\Lib\ApiClient();
         $hash = explode(' ', getallheaders()['Authorization'])[1];
@@ -1023,9 +969,7 @@ class Logitrail_WooCommerce {
                         $order_id = $payload['order']['merchants_order']['id'];
                         $order = WC_Order_Factory::get_order($order_id);
                         if (!$order) {
-                            if($this->debug_mode) {
-                                $this->logitrail_debug_log('Webhook order.shipped failed, order id ' . $order_id . ' not found');
-                            }
+                            self::logitrail_debug_log('Webhook order.shipped failed, order id ' . $order_id . ' not found');
                             break;
                         }
                         $order->update_status('completed');
@@ -1037,12 +981,11 @@ class Logitrail_WooCommerce {
 
     /**
      * @param WC_Product $product
-     * @param bool $ignore_bundled
      * @return bool
      */
-    public function logitrail_is_virtual($product, $ignore_bundled = false) {
+    public function logitrail_is_virtual($product) {
         // We don't want to ship virtual products, so we check is the product really virtual, or just part of bundle and marked virtual for this
-        if ( $product->is_virtual() && (!property_exists($product, 'bundled_value') || $ignore_bundled) ) {
+        if ( $product->is_virtual() && !property_exists($product, 'bundled_value') ) {
             return true;
         } else {
             return false;
@@ -1062,6 +1005,100 @@ class Logitrail_WooCommerce {
             return false;
         }
         return self::logitrail_get_shipping($product_id);
+    }
+
+    /**
+     * Set transient helper function
+     * @param string $key
+     * @param mixed $value
+     * @param int $expiration expiration in seconds, defaults to 1 week
+     * @param string $identifier unique string used to identify user/order
+     * @return bool
+     */
+    public function logitrail_set_transient($key, $value, $identifier = '', $expiration = 604800) {
+        if (!$value) {
+            return false;
+        }
+        if (!$identifier) {
+            $identifier = WC()->session->get_customer_id();
+        }
+        return set_transient('logitrail_'.$identifier.'_'.$key, $value, $expiration);
+    }
+
+    /**
+     * Get transient helper function
+     * @param string $key
+     * @param string $identifier unique string used to identify user/order
+     * @return mixed
+     */
+    public static function logitrail_get_transient($key, $identifier = '') {
+        if (!$identifier) {
+            $identifier = WC()->session->get_customer_id();
+        }
+        return get_transient('logitrail_'.$identifier.'_'.$key);
+    }
+
+    public static function logitrail_notifications() {
+        $notifications = self::logitrail_get_transient('notifications',  wp_get_current_user()->ID);
+        if (!$notifications) {
+            return;
+        }
+
+        foreach($notifications as $notification) {
+            printf( '<div class="%1$s"><p>%2$s</p></div>', $notification['class'], $notification['message'] );
+        }
+        self::logitrail_set_transient('notifications', array());
+    }
+
+    /**
+     * Set error for the user
+     * @param string $message
+     */
+    public static function logitrail_set_error($message) {
+        $notifications = self::logitrail_get_transient('notifications',  wp_get_current_user()->ID);
+        $notifications[] =
+            array(
+                'class' => 'notice notice-error',
+                'message' => $message
+            );
+
+        self::logitrail_set_transient('notifications', $notifications);
+    }
+
+    public static function get_debug_mode() {
+        $settings = get_option('woocommerce_logitrail_shipping_settings');
+        return $settings['debug_mode'] === 'yes' ? true : false;
+    }
+
+    // Functions related to debug logs
+
+    public static function get_debug_log() {
+        global $wpdb;
+
+        $sql = "SELECT * FROM `" . self::$tables['debug'] . "` ORDER BY created_at DESC LIMIT 100";
+        $results = $wpdb->get_results($sql, ARRAY_A);
+
+        $lines = array();
+        foreach($results as $id => $row) {
+            $lines[] = '<b>' . Date('d.m.Y H:i:s', $row['created_at']) . "</b> {$row['operation']}";
+        }
+        wp_send_json($lines);
+    }
+
+    public static function clear_debug_log() {
+        global $wpdb;
+
+        $delete = $wpdb->query("TRUNCATE TABLE `" . self::$tables['debug'] . "`");
+        wp_send_json(array('status' => 'success'));
+    }
+
+    public static function logitrail_debug_log($text) {
+        global $wpdb;
+
+        if (self::get_debug_mode()) {
+            $wpsess = 'aa'; //WP_Session_Tokens::get();
+            $wpdb->insert( self::$tables['debug'], array('session' => $wpsess, 'operation' => $text, 'created_at' => time()) );
+        }
     }
 }
 
