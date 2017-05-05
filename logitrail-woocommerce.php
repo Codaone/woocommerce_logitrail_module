@@ -3,7 +3,7 @@
 /*
     Plugin Name: Logitrail
     Description: Integrate checkout shipping with Logitrail
-    Version: 1.0.11
+    Version: 1.1.0
     Author: <a href="mailto:petri@codaone.fi">Petri Kanerva</a> | <a href="http://www.codaone.fi/">Codaone Oy</a>
 */
 
@@ -461,6 +461,10 @@ class Logitrail_WooCommerce {
         self::logitrail_debug_log('Confirming postage value as ' . $postage);
     }
 
+    /**
+     * Send created product to Logitrail
+     * @param $post_id
+     */
     function logitrail_create_product($post_id) {
         if ( get_post_status ( $post_id ) == 'publish' ) {
             $settings = get_option( 'woocommerce_logitrail_shipping_settings' );
@@ -823,9 +827,7 @@ class Logitrail_WooCommerce {
         // unset to force recalculation of cart total price when
         // shipping price is changed
 
-        if($this->debug_mode) {
-            $rates26 = array();
-        }
+        $rates26 = array();
 
         // WooCommerce 2.6 cache
         $packages = WC()->cart->get_shipping_packages();
