@@ -194,27 +194,21 @@ class Logitrail_Shipping extends WC_Shipping_Method {
      * @return void
      */
     public function calculate_shipping( $package = Array() ) {
-    	global $woocommerce;
+        $shipping_methods = array('pickup' => 'Nouto', 'letter' => 'Kirje', 'home' => 'Ovelle');
+        $title = $this->settings['title'];
+        if($title == '') {
+            $type = WC()->session->get('type');
+            $title = ($type && array_key_exists($type, $shipping_methods) ? $shipping_methods[$type] : 'Toimitustapaa ei ole valittu');
+        }
 
-		$shipping_methods = array('pickup' => 'Nouto', 'letter' => 'Kirje', 'home' => 'Ovelle');
-		$title = $this->settings['title'];
-		$unique_id = $woocommerce->session->get_customer_id();
-		if($title == '') {
-			$type = get_transient('logitrail_' . $unique_id . '_type');
-			$title = ($type && array_key_exists($type, $shipping_methods) ? $shipping_methods[$type] : 'Toimitustapaa ei ole valittu');
-		}
-
-        $postage = get_transient('logitrail_' . $unique_id . '_price');
+        $postage = WC()->session->get('price');
         $this->add_rate( array(
-                'id' 	=> $this->id . '_postage',
+                'id'    => $this->id . '_postage',
                 'label' => $title,
-				'cost' 	=> $postage,
+                'cost'  => $postage,
                 'sort'  => 0
         ) );
 
-        $debug_mode = ($this->settings['debug_mode'] === 'yes' ? true : false);
-        if($debug_mode) {
-            Logitrail_WooCommerce::logitrail_debug_log('Informing WooCommerce postage as ' . $postage);
-        }
+        Logitrail_WooCommerce::logitrail_debug_log('Informing WooCommerce postage as ' . $postage);
     }
 }
