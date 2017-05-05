@@ -3,7 +3,7 @@
 /*
     Plugin Name: Logitrail
     Description: Integrate checkout shipping with Logitrail
-    Version: 1.1.0
+    Version: 1.1.1
     Author: <a href="mailto:petri@codaone.fi">Petri Kanerva</a> | <a href="http://www.codaone.fi/">Codaone Oy</a>
 */
 
@@ -486,7 +486,7 @@ class Logitrail_WooCommerce {
             $apic->setSecretKey( $settings['secret_key'] );
 
             if ( ! $product->get_sku() && !$product->get_type() == 'variable' ) {
-                $this->logitrail_set_error('SKU puuttuu tuotteesta "' . $product->get_title() . '". Tuotetta ei voitu viedä Logitrailin järjestelmään.');
+                self::logitrail_set_error('SKU puuttuu tuotteesta "' . $product->get_title() . '". Tuotetta ei voitu viedä Logitrailin järjestelmään.');
             } else {
                 if ($product->get_type() == 'variable') {
                     // Add variation products here
@@ -500,11 +500,11 @@ class Logitrail_WooCommerce {
                         $child_title = $child->get_title() . ' - ' . $attributes;
 
                         if ( ! $child->get_sku() ) {
-                            $this->logitrail_set_error('SKU puuttuu tuotteesta "' . $child_title . '". Tuotetta ei voitu viedä Logitrailin järjestelmään.');
+                            self::logitrail_set_error('SKU puuttuu tuotteesta "' . $child_title . '". Tuotetta ei voitu viedä Logitrailin järjestelmään.');
                             continue;
                         }
                         if (in_array($child->get_sku(), $sku_array)) {
-                            $this->logitrail_set_error(
+                            self::logitrail_set_error(
                                 'Tuotteen "' . $child_title . '" SKU "'. $child->get_sku() .'" on jo lisätty Logitrailiin, 
                                 Tuotetta ei voitu viedä Logitrailin järjestelmään'
                             );
@@ -565,7 +565,7 @@ class Logitrail_WooCommerce {
                         // separately, but just as a count
                         if ( count( $responses == 1 ) ) {
                             //wc_add_notice("Virhe siirrettäessä tuotetta Logitrailille", "notice");
-                            $this->logitrail_set_error('Virhe siirrettäessä tuotetta Logitrailille.');
+                            self::logitrail_set_error('Virhe siirrettäessä tuotetta Logitrailille.');
                         } else {
                             $errors ++;
                         }
@@ -637,12 +637,12 @@ class Logitrail_WooCommerce {
                     $child_title = $child->get_title() . ' - ' . $attributes;
 
                     if ( ! $child->get_sku() ) {
-                        $this->logitrail_set_error('SKU puuttuu tuotteesta "' . $child_title . '". Tuotetta ei voitu viedä Logitrail-järjestelmään.');
+                        self::logitrail_set_error('SKU puuttuu tuotteesta "' . $child_title . '". Tuotetta ei voitu viedä Logitrail-järjestelmään.');
                         $errors++;
                         continue;
                     }
                     if (in_array($child->get_sku(), $sku_array)) {
-                        $this->logitrail_set_error('Tuotteen "' . $child_title . '" SKU "'. $child->get_sku() .'" on jo lisätty Logitrailiin. Tuotetta ei voitu viedä Logitrail-järjestelmään.');
+                        self::logitrail_set_error('Tuotteen "' . $child_title . '" SKU "'. $child->get_sku() .'" on jo lisätty Logitrailiin. Tuotetta ei voitu viedä Logitrail-järjestelmään.');
                         $errors++;
                         continue;
                     } else {
@@ -674,7 +674,7 @@ class Logitrail_WooCommerce {
             } else {
                 if (!$this->logitrail_is_virtual($product) && $this->logitrail_shipping_enabled($product->get_id())) {
                     if (in_array($product->get_sku(), $sku_array)) {
-                        $this->logitrail_set_error('Tuotteen "' . $product->title . '" SKU "'. $product->get_sku() .'" on jo lisätty. Tuotetta ei voitu viedä Logitrail-järjestelmään.');
+                        self::logitrail_set_error('Tuotteen "' . $product->title . '" SKU "'. $product->get_sku() .'" on jo lisätty. Tuotetta ei voitu viedä Logitrail-järjestelmään.');
                         $errors++;
                         continue;
                     }
@@ -1018,9 +1018,6 @@ class Logitrail_WooCommerce {
      * @return bool
      */
     public function logitrail_set_transient($key, $value, $identifier = '', $expiration = 604800) {
-        if (!$value) {
-            return false;
-        }
         if (!$identifier) {
             $identifier = WC()->session->get_customer_id();
         }
@@ -1041,7 +1038,7 @@ class Logitrail_WooCommerce {
     }
 
     public static function logitrail_notifications() {
-        $notifications = self::logitrail_get_transient('notifications',  wp_get_current_user()->ID);
+        $notifications = self::logitrail_get_transient('notifications', wp_get_current_user()->ID);
         if (!$notifications) {
             return;
         }
@@ -1049,7 +1046,7 @@ class Logitrail_WooCommerce {
         foreach($notifications as $notification) {
             printf( '<div class="%1$s"><p>%2$s</p></div>', $notification['class'], $notification['message'] );
         }
-        self::logitrail_set_transient('notifications', array());
+        self::logitrail_set_transient('notifications', array(), wp_get_current_user()->ID);
     }
 
     /**
@@ -1064,7 +1061,7 @@ class Logitrail_WooCommerce {
                 'message' => $message
             );
 
-        self::logitrail_set_transient('notifications', $notifications);
+        self::logitrail_set_transient('notifications', $notifications, wp_get_current_user()->ID);
     }
 
     public static function get_debug_mode() {
