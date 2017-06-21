@@ -34,7 +34,7 @@ function doLogitrailCheckout() {
 	logitrailTimeout = setTimeout(function() {
 		Logitrail.checkout({
 			containerId: 'logitrailContainer',
-			bridgeUrl: '?wc-ajax=logitrail',
+			bridgeUrl: '?wc-ajax=logitrail&logitrail_lang=<?php echo $logitrail_lang; ?>',
 			<?php if($useTestServer) { ?>
 			host: "http://checkout.test.logitrail.com",
 			<?php } ?>

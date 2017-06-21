@@ -193,12 +193,36 @@ class Logitrail_WooCommerce {
 
     public static function logitrail_get_template() {
         $settings = get_option('woocommerce_logitrail_shipping_settings');
-        $args = array('useTestServer' => ($settings['test_server'] === 'yes' ? true : false));
+        $args = array(
+            'useTestServer' => ($settings['test_server'] === 'yes' ? true : false)
+        );
+        $args['logitrail_lang'] = self::detectCheckoutLanguage();
         wc_get_template( 'checkout/form-logitrail.php', $args);
+    }
+
+    private static function detectCheckoutLanguage() {
+
+        if ($_GET['logitrail_lang']) {
+            return $_GET['logitrail_lang'];
+        }
+
+        $wpmlLang = apply_filters('wpml_current_language', NULL);
+        if ($wpmlLang) {
+            return $wpmlLang;
+        }
+
+        $lang = explode('_', get_locale())[0];
+        if ($lang) {
+            return $lang;
+        }
+
+        return 'fi';
     }
 
     public function logitrail_get_form() {
         global $woocommerce, $post;
+
+        $lang = self::detectCheckoutLanguage();
 
         $address = $woocommerce->customer->get_shipping_address();
         $city = $woocommerce->customer->get_shipping_city();
@@ -262,10 +286,7 @@ class Logitrail_WooCommerce {
 
             self::logitrail_debug_log('Form, added product with data: ' . '""' . ', ' . '""' . ', ' . '""' . ', ' . '""' . ', ' .  $address . ', ' . $postcode . ', ' . $city);
         }
-        $lang = explode('_', get_locale())[0];
-        if (!$lang) {
-            $lang = 'fi'; // Defaults to finnish
-        }
+
         $fields = array(
             'total_sum' => $total_sum
         );
@@ -505,7 +526,7 @@ class Logitrail_WooCommerce {
                         }
                         if (in_array($child->get_sku(), $sku_array)) {
                             self::logitrail_set_error(
-                                'Tuotteen "' . $child_title . '" SKU "'. $child->get_sku() .'" on jo lisätty Logitrailiin, 
+                                'Tuotteen "' . $child_title . '" SKU "'. $child->get_sku() .'" on jo lisätty Logitrailiin,
                                 Tuotetta ei voitu viedä Logitrailin järjestelmään'
                             );
                             continue;
