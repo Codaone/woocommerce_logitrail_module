@@ -194,11 +194,11 @@ class Logitrail_Shipping extends WC_Shipping_Method {
      * @return void
      */
     public function calculate_shipping( $package = Array() ) {
-        $shipping_methods = array('pickup' => 'Nouto', 'letter' => 'Kirje', 'home' => 'Ovelle');
+        $shipping_methods = array('pickup' => __('Pickup from selected pickup point', 'logitrail-woocommerce'), 'letter' => __('Letter delivery', 'logitrail-woocommerce'), 'home' => __('To the delivery address', 'logitrail-woocommerce'));
         $title = $this->settings['title'];
         if($title == '') {
             $type = WC()->session->get('type');
-            $title = ($type && array_key_exists($type, $shipping_methods) ? $shipping_methods[$type] : 'Toimitustapaa ei ole valittu');
+            $title = ($type && array_key_exists($type, $shipping_methods) ? $shipping_methods[$type] : __('The delivery method has not been selected yet.', 'logitrail-woocommerce'));
         }
 
         $postage = WC()->session->get('price');
