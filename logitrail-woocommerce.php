@@ -5,6 +5,7 @@
     Description: Integrate checkout shipping with Logitrail
     Version: 1.1.1
     Author: <a href="mailto:petri@codaone.fi">Petri Kanerva</a> | <a href="http://www.codaone.fi/">Codaone Oy</a>
+    Text Domain: logitrail-woocommerce
 */
 
 if(!defined('ABSPATH')) {
@@ -95,6 +96,8 @@ class Logitrail_WooCommerce {
         add_action( 'rest_api_init',  array($this, 'register_api_hooks' ));
 
         add_action( 'plugins_loaded', array($this, 'logitrail_update_db_check' ));
+        
+        add_action('plugins_loaded', array($this, 'logitrail_load_textdomain' ));
 
         // add possbile table prefix for db tables to be created
         global $wpdb;
@@ -105,6 +108,11 @@ class Logitrail_WooCommerce {
         $settings = get_option('woocommerce_logitrail_shipping_settings');
 
         $this->debug_mode = ($settings['debug_mode'] === 'yes' ? true : false);
+    }
+    
+    public function logitrail_load_textdomain() {
+        $dir = dirname( plugin_basename(__FILE__) ) . '/lang/';
+        load_plugin_textdomain('logitrail-woocommerce', false, $dir );
     }
 
     public function validate_shipping_method($data = '') {
@@ -127,7 +135,7 @@ class Logitrail_WooCommerce {
      */
     public function wf_plugin_action_links( $links ) {
         $plugin_links = array(
-            '<a href="' . admin_url( 'admin.php?page=wc-settings&tab=shipping&section=logitrail_shipping' ) . '">' . __( 'Settings', 'logitrail-woocommerce-shipping' ) . '</a>',
+            '<a href="' . admin_url( 'admin.php?page=wc-settings&tab=shipping&section=logitrail_shipping' ) . '">' . __( 'Settings', 'logitrail-woocommerce' ) . '</a>',
         );
 
         return array_merge( $plugin_links, $links );
@@ -616,7 +624,7 @@ class Logitrail_WooCommerce {
      */
     function logitrail_remove_label($label, $method) {
         if(is_cart()) {
-            return 'Laskenta tarvitsee osoitetiedot.';
+            return __('Shipping calculation requires a delivery address.', 'logitrail-woocommerce');
         }
 
         return $label;
